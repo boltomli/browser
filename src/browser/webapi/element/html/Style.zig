@@ -1,0 +1,102 @@
+// Copyright (C) 2023-2025  Lightpanda (Selecy SAS)
+//
+// Francis Bouvier <francis@lightpanda.io>
+// Pierre Tachoire <pierre@lightpanda.io>
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as
+// published by the Free Software Foundation, either version 3 of the
+// License, or (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+const js = @import("../../../js/js.zig");
+const Page = @import("../../../Page.zig");
+
+const Node = @import("../../Node.zig");
+const Element = @import("../../Element.zig");
+const HtmlElement = @import("../Html.zig");
+
+const Style = @This();
+_proto: *HtmlElement,
+
+pub fn asElement(self: *Style) *Element {
+    return self._proto._proto;
+}
+pub fn asConstElement(self: *const Style) *const Element {
+    return self._proto._proto;
+}
+pub fn asNode(self: *Style) *Node {
+    return self.asElement().asNode();
+}
+
+// Attribute-backed properties
+
+pub fn getBlocking(self: *const Style) []const u8 {
+    return self.asConstElement().getAttributeSafe("blocking") orelse "";
+}
+
+pub fn setBlocking(self: *Style, value: []const u8, page: *Page) !void {
+    try self.asElement().setAttributeSafe("blocking", value, page);
+}
+
+pub fn getMedia(self: *const Style) []const u8 {
+    return self.asConstElement().getAttributeSafe("media") orelse "";
+}
+
+pub fn setMedia(self: *Style, value: []const u8, page: *Page) !void {
+    try self.asElement().setAttributeSafe("media", value, page);
+}
+
+pub fn getType(self: *const Style) []const u8 {
+    return self.asConstElement().getAttributeSafe("type") orelse "text/css";
+}
+
+pub fn setType(self: *Style, value: []const u8, page: *Page) !void {
+    try self.asElement().setAttributeSafe("type", value, page);
+}
+
+pub fn getDisabled(self: *const Style) bool {
+    return self.asConstElement().getAttributeSafe("disabled") != null;
+}
+
+pub fn setDisabled(self: *Style, disabled: bool, page: *Page) !void {
+    if (disabled) {
+        try self.asElement().setAttributeSafe("disabled", "", page);
+    } else {
+        try self.asElement().removeAttribute("disabled", page);
+    }
+}
+
+const CSSStyleSheet = @import("../../css/CSSStyleSheet.zig");
+pub fn getSheet(_: *const Style) ?*CSSStyleSheet {
+    // TODO?
+    return null;
+}
+
+pub const JsApi = struct {
+    pub const bridge = js.Bridge(Style);
+
+    pub const Meta = struct {
+        pub const name = "HTMLStyleElement";
+        pub const prototype_chain = bridge.prototypeChain();
+        pub var class_id: bridge.ClassId = undefined;
+    };
+
+    pub const blocking = bridge.accessor(Style.getBlocking, Style.setBlocking, .{});
+    pub const media = bridge.accessor(Style.getMedia, Style.setMedia, .{});
+    pub const @"type" = bridge.accessor(Style.getType, Style.setType, .{});
+    pub const disabled = bridge.accessor(Style.getDisabled, Style.setDisabled, .{});
+    pub const sheet = bridge.accessor(Style.getSheet, null, .{});
+};
+
+const testing = @import("../../../../testing.zig");
+test "WebApi: Style" {
+    try testing.htmlRunner("element/html/style.html", .{});
+}
