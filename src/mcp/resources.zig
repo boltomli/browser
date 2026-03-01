@@ -6,11 +6,26 @@ const log = lp.log;
 const protocol = @import("protocol.zig");
 const Server = @import("Server.zig");
 
+pub const resource_list = [_]protocol.Resource{
+    .{
+        .uri = "mcp://page/html",
+        .name = "Page HTML",
+        .description = "The serialized HTML DOM of the current page",
+        .mimeType = "text/html",
+    },
+    .{
+        .uri = "mcp://page/markdown",
+        .name = "Page Markdown",
+        .description = "The token-efficient markdown representation of the current page",
+        .mimeType = "text/markdown",
+    },
+};
+
 pub fn handleList(server: *Server, req: protocol.Request) !void {
     const result = struct {
         resources: []const protocol.Resource,
     }{
-        .resources = server.resources,
+        .resources = &resource_list,
     };
 
     try server.sendResult(req.id.?, result);

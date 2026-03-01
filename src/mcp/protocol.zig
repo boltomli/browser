@@ -94,7 +94,17 @@ pub const ToolsCapability = struct {
 pub const Tool = struct {
     name: []const u8,
     description: ?[]const u8 = null,
-    inputSchema: std.json.Value,
+    inputSchema: RawJson,
+};
+
+pub const RawJson = struct {
+    json: []const u8,
+
+    pub fn jsonStringify(self: @This(), jw: anytype) !void {
+        try jw.beginWriteRaw();
+        try jw.writer.writeAll(self.json);
+        jw.endWriteRaw();
+    }
 };
 
 pub const Resource = struct {
