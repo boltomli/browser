@@ -210,14 +210,12 @@ fn handleOver(server: *Server, arena: std.mem.Allocator, id: std.json.Value, arg
 
 fn parseParams(comptime T: type, arena: std.mem.Allocator, arguments: ?std.json.Value, server: *Server, id: std.json.Value, tool_name: []const u8) !T {
     if (arguments == null) {
-        var buf: [64]u8 = undefined;
-        const msg = std.fmt.bufPrint(&buf, "Missing arguments for {s}", .{tool_name}) catch "Missing arguments";
+        const msg = std.fmt.allocPrint(arena, "Missing arguments for {s}", .{tool_name}) catch "Missing arguments";
         try server.sendError(id, .InvalidParams, msg);
         return error.InvalidParams;
     }
     return std.json.parseFromValueLeaky(T, arena, arguments.?, .{ .ignore_unknown_fields = true }) catch {
-        var buf: [64]u8 = undefined;
-        const msg = std.fmt.bufPrint(&buf, "Invalid arguments for {s}", .{tool_name}) catch "Invalid arguments";
+        const msg = std.fmt.allocPrint(arena, "Invalid arguments for {s}", .{tool_name}) catch "Invalid arguments";
         try server.sendError(id, .InvalidParams, msg);
         return error.InvalidParams;
     };
