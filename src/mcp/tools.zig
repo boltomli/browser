@@ -10,90 +10,11 @@ const protocol = @import("protocol.zig");
 const Server = @import("Server.zig");
 
 pub fn handleList(server: *Server, arena: std.mem.Allocator, req: protocol.Request) !void {
-    const tools = [_]protocol.Tool{
-        .{
-            .name = "goto",
-            .description = "Navigate to a specified URL and load the page in memory so it can be reused later for info extraction.",
-            .inputSchema = try std.json.parseFromSliceLeaky(std.json.Value, arena,
-                \\{
-                \\  "type": "object",
-                \\  "properties": {
-                \\    "url": { "type": "string", "description": "The URL to navigate to, must be a valid URL." }
-                \\  },
-                \\  "required": ["url"]
-                \\}
-            , .{}),
-        },
-        .{
-            .name = "search",
-            .description = "Use a search engine to look for specific words, terms, sentences. The search page will then be loaded in memory.",
-            .inputSchema = try std.json.parseFromSliceLeaky(std.json.Value, arena,
-                \\{
-                \\  "type": "object",
-                \\  "properties": {
-                \\    "text": { "type": "string", "description": "The text to search for, must be a valid search query." }
-                \\  },
-                \\  "required": ["text"]
-                \\}
-            , .{}),
-        },
-        .{
-            .name = "markdown",
-            .description = "Get the page content in markdown format. If a url is provided, it navigates to that url first.",
-            .inputSchema = try std.json.parseFromSliceLeaky(std.json.Value, arena,
-                \\{
-                \\  "type": "object",
-                \\  "properties": {
-                \\    "url": { "type": "string", "description": "Optional URL to navigate to before fetching markdown." }
-                \\  }
-                \\}
-            , .{}),
-        },
-        .{
-            .name = "links",
-            .description = "Extract all links in the opened page. If a url is provided, it navigates to that url first.",
-            .inputSchema = try std.json.parseFromSliceLeaky(std.json.Value, arena,
-                \\{
-                \\  "type": "object",
-                \\  "properties": {
-                \\    "url": { "type": "string", "description": "Optional URL to navigate to before extracting links." }
-                \\  }
-                \\}
-            , .{}),
-        },
-        .{
-            .name = "evaluate",
-            .description = "Evaluate JavaScript in the current page context. If a url is provided, it navigates to that url first.",
-            .inputSchema = try std.json.parseFromSliceLeaky(std.json.Value, arena,
-                \\{
-                \\  "type": "object",
-                \\  "properties": {
-                \\    "script": { "type": "string" },
-                \\    "url": { "type": "string", "description": "Optional URL to navigate to before evaluating." }
-                \\  },
-                \\  "required": ["script"]
-                \\}
-            , .{}),
-        },
-        .{
-            .name = "over",
-            .description = "Used to indicate that the task is over and give the final answer if there is any. This is the last tool to be called in a task.",
-            .inputSchema = try std.json.parseFromSliceLeaky(std.json.Value, arena,
-                \\{
-                \\  "type": "object",
-                \\  "properties": {
-                \\    "result": { "type": "string", "description": "The final result of the task." }
-                \\  },
-                \\  "required": ["result"]
-                \\}
-            , .{}),
-        },
-    };
-
+    _ = arena;
     const result = struct {
         tools: []const protocol.Tool,
     }{
-        .tools = &tools,
+        .tools = server.tools,
     };
 
     try sendResult(server, req.id.?, result);

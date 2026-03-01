@@ -7,25 +7,10 @@ const protocol = @import("protocol.zig");
 const Server = @import("Server.zig");
 
 pub fn handleList(server: *Server, req: protocol.Request) !void {
-    const resources = [_]protocol.Resource{
-        .{
-            .uri = "mcp://page/html",
-            .name = "Page HTML",
-            .description = "The serialized HTML DOM of the current page",
-            .mimeType = "text/html",
-        },
-        .{
-            .uri = "mcp://page/markdown",
-            .name = "Page Markdown",
-            .description = "The token-efficient markdown representation of the current page",
-            .mimeType = "text/markdown",
-        },
-    };
-
     const result = struct {
         resources: []const protocol.Resource,
     }{
-        .resources = &resources,
+        .resources = server.resources,
     };
 
     try sendResult(server, req.id.?, result);
