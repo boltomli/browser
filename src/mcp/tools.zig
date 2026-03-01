@@ -21,19 +21,19 @@ pub fn handleList(server: *Server, arena: std.mem.Allocator, req: protocol.Reque
 }
 
 const GotoParams = struct {
-    url: []const u8,
+    url: [:0]const u8,
 };
 
 const SearchParams = struct {
-    text: []const u8,
+    text: [:0]const u8,
 };
 
 const EvaluateParams = struct {
-    script: []const u8,
+    script: [:0]const u8,
 };
 
 const OverParams = struct {
-    result: []const u8,
+    result: [:0]const u8,
 };
 
 const ToolStreamingText = struct {
@@ -101,7 +101,7 @@ pub fn handleCall(server: *Server, arena: std.mem.Allocator, req: protocol.Reque
             return sendError(server, req.id.?, -32602, "Invalid arguments for goto");
         };
 
-        performGoto(server, arena, args.url) catch {
+        performGoto(server, args.url) catch {
             return sendError(server, req.id.?, -32603, "Internal error during navigation");
         };
 
@@ -120,11 +120,11 @@ pub fn handleCall(server: *Server, arena: std.mem.Allocator, req: protocol.Reque
         component.formatQuery(&url_aw.writer) catch {
             return sendError(server, req.id.?, -32603, "Internal error formatting query");
         };
-        const url = std.fmt.allocPrint(arena, "https://duckduckgo.com/?q={s}", .{url_aw.written()}) catch {
+        const url = std.fmt.allocPrintSentinel(arena, "https://duckduckgo.com/?q={s}", .{url_aw.written()}, 0) catch {
             return sendError(server, req.id.?, -32603, "Internal error formatting URL");
         };
 
-        performGoto(server, arena, url) catch {
+        performGoto(server, url) catch {
             return sendError(server, req.id.?, -32603, "Internal error during search navigation");
         };
 
@@ -132,12 +132,12 @@ pub fn handleCall(server: *Server, arena: std.mem.Allocator, req: protocol.Reque
         try sendResult(server, req.id.?, .{ .content = &content });
     } else if (std.mem.eql(u8, call_params.name, "markdown")) {
         const MarkdownParams = struct {
-            url: ?[]const u8 = null,
+            url: ?[:0]const u8 = null,
         };
         if (call_params.arguments) |args_raw| {
             if (std.json.parseFromValueLeaky(MarkdownParams, arena, args_raw, .{ .ignore_unknown_fields = true })) |args| {
                 if (args.url) |u| {
-                    performGoto(server, arena, u) catch {
+                    performGoto(server, u) catch {
                         return sendError(server, req.id.?, -32603, "Internal error during navigation");
                     };
                 }
@@ -155,12 +155,12 @@ pub fn handleCall(server: *Server, arena: std.mem.Allocator, req: protocol.Reque
         try sendResult(server, req.id.?, result);
     } else if (std.mem.eql(u8, call_params.name, "links")) {
         const LinksParams = struct {
-            url: ?[]const u8 = null,
+            url: ?[:0]const u8 = null,
         };
         if (call_params.arguments) |args_raw| {
             if (std.json.parseFromValueLeaky(LinksParams, arena, args_raw, .{ .ignore_unknown_fields = true })) |args| {
                 if (args.url) |u| {
-                    performGoto(server, arena, u) catch {
+                    performGoto(server, u) catch {
                         return sendError(server, req.id.?, -32603, "Internal error during navigation");
                     };
                 }
@@ -182,8 +182,8 @@ pub fn handleCall(server: *Server, arena: std.mem.Allocator, req: protocol.Reque
         }
 
         const EvaluateParamsEx = struct {
-            script: []const u8,
-            url: ?[]const u8 = null,
+            script: [:0]const u8,
+            url: ?[:0]const u8 = null,
         };
 
         const args = std.json.parseFromValueLeaky(EvaluateParamsEx, arena, call_params.arguments.?, .{ .ignore_unknown_fields = true }) catch {
@@ -191,7 +191,7 @@ pub fn handleCall(server: *Server, arena: std.mem.Allocator, req: protocol.Reque
         };
 
         if (args.url) |url| {
-            performGoto(server, arena, url) catch {
+            performGoto(server, url) catch {
                 return sendError(server, req.id.?, -32603, "Internal error during navigation");
             };
         }
@@ -224,9 +224,8 @@ pub fn handleCall(server: *Server, arena: std.mem.Allocator, req: protocol.Reque
     }
 }
 
-fn performGoto(server: *Server, arena: std.mem.Allocator, url: []const u8) !void {
-    const url_z = try arena.dupeZ(u8, url);
-    _ = server.page.navigate(url_z, .{
+fn performGoto(server: *Server, url: [:0]const u8) !void {
+    _ = server.page.navigate(url, .{
         .reason = .address_bar,
         .kind = .{ .push = null },
     }) catch {
