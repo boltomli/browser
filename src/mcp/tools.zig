@@ -14,7 +14,7 @@ pub fn handleList(server: *Server, arena: std.mem.Allocator, req: protocol.Reque
         .{
             .name = "goto",
             .description = "Navigate to a specified URL and load the page in memory so it can be reused later for info extraction.",
-            .inputSchema = std.json.parseFromSliceLeaky(std.json.Value, arena,
+            .inputSchema = try std.json.parseFromSliceLeaky(std.json.Value, arena,
                 \\{
                 \\  "type": "object",
                 \\  "properties": {
@@ -22,12 +22,12 @@ pub fn handleList(server: *Server, arena: std.mem.Allocator, req: protocol.Reque
                 \\  },
                 \\  "required": ["url"]
                 \\}
-            , .{}) catch unreachable,
+            , .{}),
         },
         .{
             .name = "search",
             .description = "Use a search engine to look for specific words, terms, sentences. The search page will then be loaded in memory.",
-            .inputSchema = std.json.parseFromSliceLeaky(std.json.Value, arena,
+            .inputSchema = try std.json.parseFromSliceLeaky(std.json.Value, arena,
                 \\{
                 \\  "type": "object",
                 \\  "properties": {
@@ -35,36 +35,36 @@ pub fn handleList(server: *Server, arena: std.mem.Allocator, req: protocol.Reque
                 \\  },
                 \\  "required": ["text"]
                 \\}
-            , .{}) catch unreachable,
+            , .{}),
         },
         .{
             .name = "markdown",
             .description = "Get the page content in markdown format. If a url is provided, it navigates to that url first.",
-            .inputSchema = std.json.parseFromSliceLeaky(std.json.Value, arena,
+            .inputSchema = try std.json.parseFromSliceLeaky(std.json.Value, arena,
                 \\{
                 \\  "type": "object",
                 \\  "properties": {
                 \\    "url": { "type": "string", "description": "Optional URL to navigate to before fetching markdown." }
                 \\  }
                 \\}
-            , .{}) catch unreachable,
+            , .{}),
         },
         .{
             .name = "links",
             .description = "Extract all links in the opened page. If a url is provided, it navigates to that url first.",
-            .inputSchema = std.json.parseFromSliceLeaky(std.json.Value, arena,
+            .inputSchema = try std.json.parseFromSliceLeaky(std.json.Value, arena,
                 \\{
                 \\  "type": "object",
                 \\  "properties": {
                 \\    "url": { "type": "string", "description": "Optional URL to navigate to before extracting links." }
                 \\  }
                 \\}
-            , .{}) catch unreachable,
+            , .{}),
         },
         .{
             .name = "evaluate",
             .description = "Evaluate JavaScript in the current page context. If a url is provided, it navigates to that url first.",
-            .inputSchema = std.json.parseFromSliceLeaky(std.json.Value, arena,
+            .inputSchema = try std.json.parseFromSliceLeaky(std.json.Value, arena,
                 \\{
                 \\  "type": "object",
                 \\  "properties": {
@@ -73,12 +73,12 @@ pub fn handleList(server: *Server, arena: std.mem.Allocator, req: protocol.Reque
                 \\  },
                 \\  "required": ["script"]
                 \\}
-            , .{}) catch unreachable,
+            , .{}),
         },
         .{
             .name = "over",
             .description = "Used to indicate that the task is over and give the final answer if there is any. This is the last tool to be called in a task.",
-            .inputSchema = std.json.parseFromSliceLeaky(std.json.Value, arena,
+            .inputSchema = try std.json.parseFromSliceLeaky(std.json.Value, arena,
                 \\{
                 \\  "type": "object",
                 \\  "properties": {
@@ -86,7 +86,7 @@ pub fn handleList(server: *Server, arena: std.mem.Allocator, req: protocol.Reque
                 \\  },
                 \\  "required": ["result"]
                 \\}
-            , .{}) catch unreachable,
+            , .{}),
         },
     };
 
