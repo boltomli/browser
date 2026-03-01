@@ -6,7 +6,6 @@ const js = lp.js;
 
 const Element = @import("../browser/webapi/Element.zig");
 const Selector = @import("../browser/webapi/selector/Selector.zig");
-const String = @import("../string.zig").String;
 const protocol = @import("protocol.zig");
 const Server = @import("Server.zig");
 
@@ -133,8 +132,13 @@ const ToolStreamingText = struct {
                 if (Selector.querySelectorAll(self.server.page.document.asNode(), "a[href]", self.server.page)) |list| {
                     var first = true;
                     for (list._nodes) |node| {
-                        if (node.is(Element)) |el| {
-                            if (el.getAttributeSafe(String.wrap("href"))) |href| {
+                        if (node.is(Element.Html.Anchor)) |anchor| {
+                            const href = anchor.getHref(self.server.page) catch |err| {
+                                log.err(.mcp, "resolve href failed", .{ .err = err });
+                                continue;
+                            };
+
+                            if (href.len > 0) {
                                 if (!first) try w.writeByte('\n');
                                 try w.writeAll(href);
                                 first = false;
