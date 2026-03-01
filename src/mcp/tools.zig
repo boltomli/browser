@@ -30,6 +30,7 @@ const SearchParams = struct {
 
 const EvaluateParams = struct {
     script: [:0]const u8,
+    url: ?[:0]const u8 = null,
 };
 
 const OverParams = struct {
@@ -94,141 +95,153 @@ pub fn handleCall(server: *Server, arena: std.mem.Allocator, req: protocol.Reque
     };
 
     if (std.mem.eql(u8, call_params.name, "goto") or std.mem.eql(u8, call_params.name, "navigate")) {
-        if (call_params.arguments == null) {
-            return sendError(server, req.id.?, -32602, "Missing arguments for goto");
-        }
-        const args = std.json.parseFromValueLeaky(GotoParams, arena, call_params.arguments.?, .{ .ignore_unknown_fields = true }) catch {
-            return sendError(server, req.id.?, -32602, "Invalid arguments for goto");
-        };
-
-        performGoto(server, args.url) catch {
-            return sendError(server, req.id.?, -32603, "Internal error during navigation");
-        };
-
-        const content = [_]struct { type: []const u8, text: []const u8 }{.{ .type = "text", .text = "Navigated successfully." }};
-        try sendResult(server, req.id.?, .{ .content = &content });
+        try handleGoto(server, arena, req.id.?, call_params.arguments);
     } else if (std.mem.eql(u8, call_params.name, "search")) {
-        if (call_params.arguments == null) {
-            return sendError(server, req.id.?, -32602, "Missing arguments for search");
-        }
-        const args = std.json.parseFromValueLeaky(SearchParams, arena, call_params.arguments.?, .{ .ignore_unknown_fields = true }) catch {
-            return sendError(server, req.id.?, -32602, "Invalid arguments for search");
-        };
-
-        const component: std.Uri.Component = .{ .raw = args.text };
-        var url_aw = std.Io.Writer.Allocating.init(arena);
-        component.formatQuery(&url_aw.writer) catch {
-            return sendError(server, req.id.?, -32603, "Internal error formatting query");
-        };
-        const url = std.fmt.allocPrintSentinel(arena, "https://duckduckgo.com/?q={s}", .{url_aw.written()}, 0) catch {
-            return sendError(server, req.id.?, -32603, "Internal error formatting URL");
-        };
-
-        performGoto(server, url) catch {
-            return sendError(server, req.id.?, -32603, "Internal error during search navigation");
-        };
-
-        const content = [_]struct { type: []const u8, text: []const u8 }{.{ .type = "text", .text = "Search performed successfully." }};
-        try sendResult(server, req.id.?, .{ .content = &content });
+        try handleSearch(server, arena, req.id.?, call_params.arguments);
     } else if (std.mem.eql(u8, call_params.name, "markdown")) {
-        const MarkdownParams = struct {
-            url: ?[:0]const u8 = null,
-        };
-        if (call_params.arguments) |args_raw| {
-            if (std.json.parseFromValueLeaky(MarkdownParams, arena, args_raw, .{ .ignore_unknown_fields = true })) |args| {
-                if (args.url) |u| {
-                    performGoto(server, u) catch {
-                        return sendError(server, req.id.?, -32603, "Internal error during navigation");
-                    };
-                }
-            } else |_| {}
-        }
-
-        const result = struct {
-            content: []const struct { type: []const u8, text: ToolStreamingText },
-        }{
-            .content = &.{.{
-                .type = "text",
-                .text = .{ .server = server, .action = .markdown },
-            }},
-        };
-        try sendResult(server, req.id.?, result);
+        try handleMarkdown(server, arena, req.id.?, call_params.arguments);
     } else if (std.mem.eql(u8, call_params.name, "links")) {
-        const LinksParams = struct {
-            url: ?[:0]const u8 = null,
-        };
-        if (call_params.arguments) |args_raw| {
-            if (std.json.parseFromValueLeaky(LinksParams, arena, args_raw, .{ .ignore_unknown_fields = true })) |args| {
-                if (args.url) |u| {
-                    performGoto(server, u) catch {
-                        return sendError(server, req.id.?, -32603, "Internal error during navigation");
-                    };
-                }
-            } else |_| {}
-        }
-
-        const result = struct {
-            content: []const struct { type: []const u8, text: ToolStreamingText },
-        }{
-            .content = &.{.{
-                .type = "text",
-                .text = .{ .server = server, .action = .links },
-            }},
-        };
-        try sendResult(server, req.id.?, result);
+        try handleLinks(server, arena, req.id.?, call_params.arguments);
     } else if (std.mem.eql(u8, call_params.name, "evaluate")) {
-        if (call_params.arguments == null) {
-            return sendError(server, req.id.?, -32602, "Missing arguments for evaluate");
-        }
-
-        const EvaluateParamsEx = struct {
-            script: [:0]const u8,
-            url: ?[:0]const u8 = null,
-        };
-
-        const args = std.json.parseFromValueLeaky(EvaluateParamsEx, arena, call_params.arguments.?, .{ .ignore_unknown_fields = true }) catch {
-            return sendError(server, req.id.?, -32602, "Invalid arguments for evaluate");
-        };
-
-        if (args.url) |url| {
-            performGoto(server, url) catch {
-                return sendError(server, req.id.?, -32603, "Internal error during navigation");
-            };
-        }
-
-        var ls: js.Local.Scope = undefined;
-        server.page.js.localScope(&ls);
-        defer ls.deinit();
-
-        const js_result = ls.local.compileAndRun(args.script, null) catch {
-            const content = [_]struct { type: []const u8, text: []const u8 }{.{ .type = "text", .text = "Script evaluation failed." }};
-            return sendResult(server, req.id.?, .{ .content = &content, .isError = true });
-        };
-
-        const str_result = js_result.toStringSliceWithAlloc(arena) catch "undefined";
-
-        const content = [_]struct { type: []const u8, text: []const u8 }{.{ .type = "text", .text = str_result }};
-        try sendResult(server, req.id.?, .{ .content = &content });
+        try handleEvaluate(server, arena, req.id.?, call_params.arguments);
     } else if (std.mem.eql(u8, call_params.name, "over")) {
-        if (call_params.arguments == null) {
-            return sendError(server, req.id.?, -32602, "Missing arguments for over");
-        }
-        const args = std.json.parseFromValueLeaky(OverParams, arena, call_params.arguments.?, .{}) catch {
-            return sendError(server, req.id.?, -32602, "Invalid arguments for over");
-        };
-
-        const content = [_]struct { type: []const u8, text: []const u8 }{.{ .type = "text", .text = args.result }};
-        try sendResult(server, req.id.?, .{ .content = &content });
+        try handleOver(server, arena, req.id.?, call_params.arguments);
     } else {
         return sendError(server, req.id.?, -32601, "Tool not found");
     }
 }
 
-fn performGoto(server: *Server, url: [:0]const u8) !void {
+fn handleGoto(server: *Server, arena: std.mem.Allocator, id: std.json.Value, arguments: ?std.json.Value) !void {
+    const args = try parseParams(GotoParams, arena, arguments, server, id, "goto");
+    try performGoto(server, args.url, id);
+
+    const content = [_]struct { type: []const u8, text: []const u8 }{.{ .type = "text", .text = "Navigated successfully." }};
+    try sendResult(server, id, .{ .content = &content });
+}
+
+fn handleSearch(server: *Server, arena: std.mem.Allocator, id: std.json.Value, arguments: ?std.json.Value) !void {
+    const args = try parseParams(SearchParams, arena, arguments, server, id, "search");
+
+    const component: std.Uri.Component = .{ .raw = args.text };
+    var url_aw = std.Io.Writer.Allocating.init(arena);
+    component.formatQuery(&url_aw.writer) catch {
+        return sendError(server, id, -32603, "Internal error formatting query");
+    };
+    const url = std.fmt.allocPrintSentinel(arena, "https://duckduckgo.com/?q={s}", .{url_aw.written()}, 0) catch {
+        return sendError(server, id, -32603, "Internal error formatting URL");
+    };
+
+    try performGoto(server, url, id);
+
+    const content = [_]struct { type: []const u8, text: []const u8 }{.{ .type = "text", .text = "Search performed successfully." }};
+    try sendResult(server, id, .{ .content = &content });
+}
+
+fn handleMarkdown(server: *Server, arena: std.mem.Allocator, id: std.json.Value, arguments: ?std.json.Value) !void {
+    const MarkdownParams = struct {
+        url: ?[:0]const u8 = null,
+    };
+    if (try parseParamsOptional(MarkdownParams, arena, arguments)) |args| {
+        if (args.url) |u| {
+            try performGoto(server, u, id);
+        }
+    }
+
+    const result = struct {
+        content: []const struct { type: []const u8, text: ToolStreamingText },
+    }{
+        .content = &.{.{
+            .type = "text",
+            .text = .{ .server = server, .action = .markdown },
+        }},
+    };
+    try sendResult(server, id, result);
+}
+
+fn handleLinks(server: *Server, arena: std.mem.Allocator, id: std.json.Value, arguments: ?std.json.Value) !void {
+    const LinksParams = struct {
+        url: ?[:0]const u8 = null,
+    };
+    if (try parseParamsOptional(LinksParams, arena, arguments)) |args| {
+        if (args.url) |u| {
+            try performGoto(server, u, id);
+        }
+    }
+
+    const result = struct {
+        content: []const struct { type: []const u8, text: ToolStreamingText },
+    }{
+        .content = &.{.{
+            .type = "text",
+            .text = .{ .server = server, .action = .links },
+        }},
+    };
+    try sendResult(server, id, result);
+}
+
+fn handleEvaluate(server: *Server, arena: std.mem.Allocator, id: std.json.Value, arguments: ?std.json.Value) !void {
+    const args = try parseParams(EvaluateParams, arena, arguments, server, id, "evaluate");
+
+    if (args.url) |url| {
+        try performGoto(server, url, id);
+    }
+
+    var ls: js.Local.Scope = undefined;
+    server.page.js.localScope(&ls);
+    defer ls.deinit();
+
+    const js_result = ls.local.compileAndRun(args.script, null) catch {
+        const content = [_]struct { type: []const u8, text: []const u8 }{.{ .type = "text", .text = "Script evaluation failed." }};
+        return sendResult(server, id, .{ .content = &content, .isError = true });
+    };
+
+    const str_result = js_result.toStringSliceWithAlloc(arena) catch "undefined";
+
+    const content = [_]struct { type: []const u8, text: []const u8 }{.{ .type = "text", .text = str_result }};
+    try sendResult(server, id, .{ .content = &content });
+}
+
+fn handleOver(server: *Server, arena: std.mem.Allocator, id: std.json.Value, arguments: ?std.json.Value) !void {
+    const args = try parseParams(OverParams, arena, arguments, server, id, "over");
+
+    const content = [_]struct { type: []const u8, text: []const u8 }{.{ .type = "text", .text = args.result }};
+    try sendResult(server, id, .{ .content = &content });
+}
+
+fn parseParams(comptime T: type, arena: std.mem.Allocator, arguments: ?std.json.Value, server: *Server, id: std.json.Value, tool_name: []const u8) !T {
+    if (arguments == null) {
+        // We need to print the error message, so we need an allocator.
+        // But we are in a helper, we should probably just return the error.
+        // However, sendError sends the response.
+        // Let's use a fixed buffer for the error message to avoid complex error handling.
+        var buf: [64]u8 = undefined;
+        const msg = std.fmt.bufPrint(&buf, "Missing arguments for {s}", .{tool_name}) catch "Missing arguments";
+        try sendError(server, id, -32602, msg);
+        return error.InvalidParams;
+    }
+    return std.json.parseFromValueLeaky(T, arena, arguments.?, .{ .ignore_unknown_fields = true }) catch {
+        var buf: [64]u8 = undefined;
+        const msg = std.fmt.bufPrint(&buf, "Invalid arguments for {s}", .{tool_name}) catch "Invalid arguments";
+        try sendError(server, id, -32602, msg);
+        return error.InvalidParams;
+    };
+}
+
+fn parseParamsOptional(comptime T: type, arena: std.mem.Allocator, arguments: ?std.json.Value) !?T {
+    if (arguments) |args_raw| {
+        if (std.json.parseFromValueLeaky(T, arena, args_raw, .{ .ignore_unknown_fields = true })) |args| {
+            return args;
+        } else |_| {}
+    }
+    return null;
+}
+
+fn performGoto(server: *Server, url: [:0]const u8, id: std.json.Value) !void {
     _ = server.page.navigate(url, .{
         .reason = .address_bar,
         .kind = .{ .push = null },
     }) catch {
+        try sendError(server, id, -32603, "Internal error during navigation");
         return error.NavigationFailed;
     };
 
