@@ -13,12 +13,12 @@ pub fn processRequests(server: *Server) !void {
     var stdin_buf: [8192]u8 = undefined;
     var stdin = stdin_file.reader(&stdin_buf);
 
-    server.is_running.store(true, .seq_cst);
+    server.is_running.store(true, .release);
 
     var arena: std.heap.ArenaAllocator = .init(server.allocator);
     defer arena.deinit();
 
-    while (server.is_running.load(.seq_cst)) {
+    while (server.is_running.load(.acquire)) {
         const msg = stdin.interface.adaptToOldInterface().readUntilDelimiterAlloc(server.allocator, '\n', 1024 * 1024 * 10) catch |err| {
             if (err == error.EndOfStream) break;
             return err;

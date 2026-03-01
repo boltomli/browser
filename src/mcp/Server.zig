@@ -156,7 +156,7 @@ fn initResources(allocator: std.mem.Allocator) ![]const protocol.Resource {
 }
 
 pub fn deinit(self: *Self) void {
-    self.is_running.store(false, .seq_cst);
+    self.is_running.store(false, .release);
 
     self.browser.deinit();
     self.allocator.destroy(self.browser);
