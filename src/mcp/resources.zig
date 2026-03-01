@@ -13,7 +13,7 @@ pub fn handleList(server: *Server, req: protocol.Request) !void {
         .resources = server.resources,
     };
 
-    try sendResult(server, req.id.?, result);
+    try server.sendResult(req.id.?, result);
 }
 
 const ReadParams = struct {
@@ -61,11 +61,11 @@ const ResourceStreamingResult = struct {
 
 pub fn handleRead(server: *Server, arena: std.mem.Allocator, req: protocol.Request) !void {
     if (req.params == null) {
-        return sendError(server, req.id.?, -32602, "Missing params");
+        return server.sendError(req.id.?, .InvalidParams, "Missing params");
     }
 
     const params = std.json.parseFromValueLeaky(ReadParams, arena, req.params.?, .{ .ignore_unknown_fields = true }) catch {
-        return sendError(server, req.id.?, -32602, "Invalid params");
+        return server.sendError(req.id.?, .InvalidParams, "Invalid params");
     };
 
     if (std.mem.eql(u8, params.uri, "mcp://page/html")) {
@@ -76,7 +76,7 @@ pub fn handleRead(server: *Server, arena: std.mem.Allocator, req: protocol.Reque
                 .text = .{ .server = server, .uri = params.uri, .format = .html },
             }},
         };
-        try sendResult(server, req.id.?, result);
+        try server.sendResult(req.id.?, result);
     } else if (std.mem.eql(u8, params.uri, "mcp://page/markdown")) {
         const result: ResourceStreamingResult = .{
             .contents = &.{.{
@@ -85,30 +85,8 @@ pub fn handleRead(server: *Server, arena: std.mem.Allocator, req: protocol.Reque
                 .text = .{ .server = server, .uri = params.uri, .format = .markdown },
             }},
         };
-        try sendResult(server, req.id.?, result);
+        try server.sendResult(req.id.?, result);
     } else {
-        return sendError(server, req.id.?, -32602, "Resource not found");
+        return server.sendError(req.id.?, .InvalidRequest, "Resource not found");
     }
-}
-
-pub fn sendResult(server: *Server, id: std.json.Value, result: anytype) !void {
-    const GenericResponse = struct {
-        jsonrpc: []const u8 = "2.0",
-        id: std.json.Value,
-        result: @TypeOf(result),
-    };
-    try server.sendResponse(GenericResponse{
-        .id = id,
-        .result = result,
-    });
-}
-
-pub fn sendError(server: *Server, id: std.json.Value, code: i64, message: []const u8) !void {
-    try server.sendResponse(protocol.Response{
-        .id = id,
-        .@"error" = protocol.Error{
-            .code = code,
-            .message = message,
-        },
-    });
 }

@@ -20,6 +20,14 @@ pub const Error = struct {
     data: ?std.json.Value = null,
 };
 
+pub const ErrorCode = enum(i64) {
+    ParseError = -32700,
+    InvalidRequest = -32600,
+    MethodNotFound = -32601,
+    InvalidParams = -32602,
+    InternalError = -32603,
+};
+
 pub const Notification = struct {
     jsonrpc: []const u8 = "2.0",
     method: []const u8,
@@ -185,7 +193,7 @@ test "protocol error formatting" {
     const response = Response{
         .id = .{ .string = "abc" },
         .@"error" = .{
-            .code = -32601,
+            .code = @intFromEnum(ErrorCode.MethodNotFound),
             .message = "Method not found",
         },
     };

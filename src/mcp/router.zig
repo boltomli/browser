@@ -64,26 +64,8 @@ fn handleMessage(server: *Server, arena: std.mem.Allocator, msg: []const u8) !vo
     } else if (std.mem.eql(u8, parsed.method, "tools/call")) {
         try tools.handleCall(server, arena, parsed);
     } else {
-        try server.sendResponse(protocol.Response{
-            .id = parsed.id.?,
-            .@"error" = protocol.Error{
-                .code = -32601,
-                .message = "Method not found",
-            },
-        });
+        try server.sendError(parsed.id.?, .MethodNotFound, "Method not found");
     }
-}
-
-fn sendResponseGeneric(server: *Server, id: std.json.Value, result: anytype) !void {
-    const GenericResponse = struct {
-        jsonrpc: []const u8 = "2.0",
-        id: std.json.Value,
-        result: @TypeOf(result),
-    };
-    try server.sendResponse(GenericResponse{
-        .id = id,
-        .result = result,
-    });
 }
 
 fn handleInitialize(server: *Server, req: protocol.Request) !void {
@@ -100,5 +82,5 @@ fn handleInitialize(server: *Server, req: protocol.Request) !void {
         },
     };
 
-    try sendResponseGeneric(server, req.id.?, result);
+    try server.sendResult(req.id.?, result);
 }

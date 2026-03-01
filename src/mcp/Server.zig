@@ -180,3 +180,25 @@ pub fn sendResponse(self: *Self, response: anytype) !void {
     try stdout.interface.writeByte('\n');
     try stdout.interface.flush();
 }
+
+pub fn sendResult(self: *Self, id: std.json.Value, result: anytype) !void {
+    const GenericResponse = struct {
+        jsonrpc: []const u8 = "2.0",
+        id: std.json.Value,
+        result: @TypeOf(result),
+    };
+    try self.sendResponse(GenericResponse{
+        .id = id,
+        .result = result,
+    });
+}
+
+pub fn sendError(self: *Self, id: std.json.Value, code: protocol.ErrorCode, message: []const u8) !void {
+    try self.sendResponse(protocol.Response{
+        .id = id,
+        .@"error" = protocol.Error{
+            .code = @intFromEnum(code),
+            .message = message,
+        },
+    });
+}
