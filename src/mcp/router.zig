@@ -18,13 +18,22 @@ pub fn processRequests(server: *Server) !void {
     var arena: std.heap.ArenaAllocator = .init(server.allocator);
     defer arena.deinit();
 
-    while (server.is_running.load(.acquire)) {
-        const msg = stdin.interface.adaptToOldInterface().readUntilDelimiterAlloc(server.allocator, '\n', 1024 * 1024 * 10) catch |err| {
-            if (err == error.EndOfStream) break;
-            return err;
-        };
-        defer server.allocator.free(msg);
+    var msg_buf = std.Io.Writer.Allocating.init(server.allocator);
+    defer msg_buf.deinit();
 
+    while (server.is_running.load(.acquire)) {
+        msg_buf.clearRetainingCapacity();
+        const n = try stdin.interface.streamDelimiterLimit(&msg_buf.writer, '\n', .limited(1024 * 1024 * 10));
+
+        var found_newline = true;
+        _ = stdin.interface.discardDelimiterInclusive('\n') catch |err| switch (err) {
+            error.EndOfStream => found_newline = false,
+            else => return err,
+        };
+
+        if (n == 0 and !found_newline) break;
+
+        const msg = msg_buf.written();
         if (msg.len == 0) continue;
 
         handleMessage(server, arena.allocator(), msg) catch |err| {
