@@ -1,6 +1,7 @@
 const std = @import("std");
 
 const lp = @import("lightpanda");
+const log = lp.log;
 
 const protocol = @import("protocol.zig");
 const Server = @import("Server.zig");
@@ -58,8 +59,12 @@ const ResourceStreamingResult = struct {
             try jw.writer.writeByte('"');
             var escaped = protocol.JsonEscapingWriter.init(jw.writer);
             switch (self.format) {
-                .html => try lp.dump.root(self.server.page.document, .{}, &escaped.writer, self.server.page),
-                .markdown => try lp.markdown.dump(self.server.page.document.asNode(), .{}, &escaped.writer, self.server.page),
+                .html => lp.dump.root(self.server.page.document, .{}, &escaped.writer, self.server.page) catch |err| {
+                    log.err(.mcp, "html dump failed", .{ .err = err });
+                },
+                .markdown => lp.markdown.dump(self.server.page.document.asNode(), .{}, &escaped.writer, self.server.page) catch |err| {
+                    log.err(.mcp, "markdown dump failed", .{ .err = err });
+                },
             }
             try jw.writer.writeByte('"');
             jw.endWriteRaw();
@@ -79,7 +84,7 @@ pub fn handleRead(server: *Server, arena: std.mem.Allocator, req: protocol.Reque
     };
 
     if (std.mem.eql(u8, params.uri, "mcp://page/html")) {
-        const result = ResourceStreamingResult{
+        const result: ResourceStreamingResult = .{
             .contents = &.{.{
                 .uri = params.uri,
                 .mimeType = "text/html",
@@ -88,7 +93,7 @@ pub fn handleRead(server: *Server, arena: std.mem.Allocator, req: protocol.Reque
         };
         try sendResult(server, req.id.?, result);
     } else if (std.mem.eql(u8, params.uri, "mcp://page/markdown")) {
-        const result = ResourceStreamingResult{
+        const result: ResourceStreamingResult = .{
             .contents = &.{.{
                 .uri = params.uri,
                 .mimeType = "text/markdown",

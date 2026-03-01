@@ -126,21 +126,23 @@ const ToolStreamingText = struct {
         var escaped = protocol.JsonEscapingWriter.init(jw.writer);
         const w = &escaped.writer;
         switch (self.action) {
-            .markdown => try lp.markdown.dump(self.server.page.document.asNode(), .{}, w, self.server.page),
+            .markdown => lp.markdown.dump(self.server.page.document.asNode(), .{}, w, self.server.page) catch |err| {
+                log.err(.mcp, "markdown dump failed", .{ .err = err });
+            },
             .links => {
-                const list = Selector.querySelectorAll(self.server.page.document.asNode(), "a[href]", self.server.page) catch |err| {
-                    log.err(.mcp, "Error querying links: {s}", .{@errorName(err)});
-                    return;
-                };
-                var first = true;
-                for (list._nodes) |node| {
-                    if (node.is(Element)) |el| {
-                        if (el.getAttributeSafe(String.wrap("href"))) |href| {
-                            if (!first) try w.writeByte('\n');
-                            try w.writeAll(href);
-                            first = false;
+                if (Selector.querySelectorAll(self.server.page.document.asNode(), "a[href]", self.server.page)) |list| {
+                    var first = true;
+                    for (list._nodes) |node| {
+                        if (node.is(Element)) |el| {
+                            if (el.getAttributeSafe(String.wrap("href"))) |href| {
+                                if (!first) try w.writeByte('\n');
+                                try w.writeAll(href);
+                                first = false;
+                            }
                         }
                     }
+                } else |err| {
+                    log.err(.mcp, "query links failed", .{ .err = err });
                 }
             },
         }
