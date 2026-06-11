@@ -168,7 +168,7 @@ pub fn hasPage(self: *const Session) bool {
 
 // Allocate and initialize a Page.
 fn allocatePage(self: *Session, frame_id: u32) !*Page {
-    const page = try self.browser.page_pool.create();
+    const page = try self.browser.page_pool.create(self.browser.app.allocator);
     errdefer self.browser.page_pool.destroy(page);
 
     try Page.init(page, self, frame_id);

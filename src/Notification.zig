@@ -324,7 +324,7 @@ pub fn deinit(self: *Notification) void {
 pub fn register(self: *Notification, comptime event: EventType, receiver: anytype, func: EventFunc(event)) !void {
     var list = &@field(self.event_listeners, @tagName(event));
 
-    var listener = try self.mem_pool.create();
+    var listener = try self.mem_pool.create(self.allocator);
     errdefer self.mem_pool.destroy(listener);
 
     listener.* = .{

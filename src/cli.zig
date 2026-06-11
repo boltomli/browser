@@ -285,17 +285,17 @@ pub fn Builder(comptime commands: anytype) type {
         };
 
         /// Parses executable name, command and options via single call.
-        pub fn parse(allocator: Allocator) !struct { []const u8, Union } {
-            var args = try std.process.argsWithAllocator(allocator);
-            defer args.deinit();
+        pub fn parse(allocator: Allocator, args: std.process.Args) !struct { []const u8, Union } {
+            var args_iter = try args.iterateAllocator(allocator);
+            defer args_iter.deinit();
 
-            const exec_name = std.fs.path.basename(args.next().?);
+            const exec_name = std.fs.path.basename(args_iter.next().?);
 
-            const cmd_str: []const u8 = args.next() orelse "serve";
+            const cmd_str: []const u8 = args_iter.next() orelse "serve";
             inline for (commands) |command| {
                 // Match a command.
                 if (std.mem.eql(u8, cmd_str, command.name)) {
-                    const cmd_parsed = try parseCommand(allocator, command, &args);
+                    const cmd_parsed = try parseCommand(allocator, command, &args_iter);
                     return .{ exec_name, cmd_parsed };
                 }
             }
@@ -303,7 +303,7 @@ pub fn Builder(comptime commands: anytype) type {
             // Help is not in `commands`; so, we have to special case it.
             if (std.mem.eql(u8, cmd_str, "help")) {
                 // Check if we're followed by a command name.
-                const command_name: []const u8 = args.next() orelse {
+                const command_name: []const u8 = args_iter.next() orelse {
                     // "lightpanda help"; short-circuit.
                     return .{ exec_name, @unionInit(Union, "help", .help) };
                 };
@@ -337,14 +337,14 @@ pub fn Builder(comptime commands: anytype) type {
             // "cmd_str" wasn't a command but an option. We can't reset args, but
             // we can create a new one. Not great, but this fallback is temporary
             // as we transition to this command mode approach.
-            args.deinit();
-            args = try std.process.argsWithAllocator(allocator);
+            args_iter.deinit();
+            args_iter = try args.iterateAllocator(allocator);
             // Skip the `exec_name`.
-            _ = args.skip();
+            _ = args_iter.skip();
 
             inline for (commands) |command| {
                 if (std.mem.eql(u8, @tagName(command_enum), command.name)) {
-                    const cmd_parsed = try parseCommand(allocator, command, &args);
+                    const cmd_parsed = try parseCommand(allocator, command, &args_iter);
                     return .{ exec_name, cmd_parsed };
                 }
             }
@@ -396,10 +396,10 @@ pub fn Builder(comptime commands: anytype) type {
         /// Returns the type for validator function.
         pub fn ValidatorFn(comptime T: type, comptime is_multiple: bool) type {
             if (is_multiple) {
-                return *const fn (Allocator, *std.process.ArgIterator, *std.ArrayList(T)) anyerror!void;
+                return *const fn (Allocator, *std.process.Args.Iterator, *std.ArrayList(T)) anyerror!void;
             }
 
-            return *const fn (Allocator, *std.process.ArgIterator) anyerror!T;
+            return *const fn (Allocator, *std.process.Args.Iterator) anyerror!T;
         }
 
         /// Turns a snake_case string to kebab-case in comptime.
@@ -413,7 +413,7 @@ pub fn Builder(comptime commands: anytype) type {
 
         fn parseValue(
             allocator: Allocator,
-            args: *std.process.ArgIterator,
+            args: *std.process.Args.Iterator,
             /// Pointer to field; *T.
             target: anytype,
             /// `Option` doesn't have a concrete type; this field expects:
@@ -589,7 +589,7 @@ pub fn Builder(comptime commands: anytype) type {
         fn parseCommand(
             allocator: Allocator,
             command: anytype,
-            args: *std.process.ArgIterator,
+            args: *std.process.Args.Iterator,
         ) !Union {
             const Command = @FieldType(Union, command.name);
             var c = Command{};
@@ -685,7 +685,7 @@ pub fn Builder(comptime commands: anytype) type {
                                 }
 
                                 // Dupe branch.
-                                const buf = try allocator.alignedAlloc(u8, .fromByteUnits(pointer.alignment), str.len);
+                        const buf = try allocator.alignedAlloc(u8, std.mem.Alignment.fromByteUnitsOptional(pointer.alignment), str.len);
                                 @memcpy(buf, str);
                                 break :blk buf;
                             };

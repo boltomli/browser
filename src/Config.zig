@@ -578,8 +578,8 @@ pub fn printUsageAndExit(self: *const Config, help_for: RunMode, success: bool) 
     std.process.exit(1);
 }
 
-pub fn parseArgs(allocator: Allocator) !Config {
-    const exec_name, const command = try Commands.parse(allocator);
+pub fn parseArgs(allocator: Allocator, args: std.process.Args) !Config {
+    const exec_name, const command = try Commands.parse(allocator, args);
     if (command == .serve and command.serve.timeout != null) {
         log.warn(.app, "--timeout is deprecated", .{});
     }

@@ -79,7 +79,7 @@ pub const Registry = struct {
         // but, just in case, let's try to keep things tidy.
         errdefer _ = self.lookup_by_node.remove(dom_node);
 
-        const node = try self.node_pool.create();
+        const node = try self.node_pool.create(self.allocator);
         errdefer self.node_pool.destroy(node);
 
         const id = self.node_id;

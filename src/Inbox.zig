@@ -36,7 +36,7 @@ const DoublyLinkedList = std.DoublyLinkedList;
 
 const Inbox = @This();
 
-mutex: std.Thread.Mutex = .{},
+mutex: std.atomic.Mutex = .unlocked,
 queue: DoublyLinkedList = .{},
 
 // One-way latch, set by the worker's drainInbox the first time it

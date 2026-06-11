@@ -19,7 +19,7 @@
 const std = @import("std");
 const lp = @import("lightpanda");
 
-pub fn main() !void {
+pub fn main(init: std.process.Init) !void {
     const allocator = std.heap.c_allocator;
 
     var platform = try lp.js.Platform.init();
@@ -29,19 +29,20 @@ pub fn main() !void {
     defer snapshot.deinit();
 
     var is_stdout = true;
-    var file = std.fs.File.stdout();
-    var args = try std.process.argsWithAllocator(allocator);
-    _ = args.next(); // executable name
-    if (args.next()) |n| {
+    var file = std.Io.File.stdout();
+    var args_iter = try init.minimal.args.iterateAllocator(allocator);
+    defer args_iter.deinit();
+    _ = args_iter.next(); // executable name
+    if (args_iter.next()) |n| {
         is_stdout = false;
-        file = try std.fs.cwd().createFile(n, .{});
+        file = try std.Io.Dir.cwd().createFile(std.Io.File.stderr().io, n, .{});
     }
     defer if (!is_stdout) {
-        file.close();
+        file.close(std.Io.File.stderr().io);
     };
 
     var buffer: [4096]u8 = undefined;
-    var writer = file.writer(&buffer);
+    var writer = file.writer(std.Io.File.stderr().io, &buffer);
     try snapshot.write(&writer.interface);
     try writer.end();
 }

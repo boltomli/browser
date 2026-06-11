@@ -899,7 +899,7 @@ pub fn newConnection(self: *Network) ?*http.Connection {
             return null;
         }
 
-        const c = self.ws_pool.create() catch return null;
+        const c = self.ws_pool.create(self.allocator) catch return null;
         self.ws_count += 1;
         break :blk c;
     };

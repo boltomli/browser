@@ -22,11 +22,13 @@ const Allocator = std.mem.Allocator;
 const M = @This();
 
 // German-string (small string optimization)
-pub const String = packed struct {
-    len: i32,
-    payload: packed union {
+// Zig 0.16 disallows non-bit-packed types in packed unions.
+// We store the payload as a raw u96 and use @bitCast where needed.
+pub const String = extern struct {
+    len: i32 align(1),
+    payload: extern union {
         content: [12]u8,
-        heap: packed struct { prefix: [4]u8, ptr: [*]const u8 },
+        heap: extern struct { prefix: [4]u8, ptr: [*]const u8 },
     },
 
     const tombstone = -1;

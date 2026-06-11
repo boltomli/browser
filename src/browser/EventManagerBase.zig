@@ -138,7 +138,7 @@ pub fn register(self: *EventManagerBase, target: *EventTarget, typ: []const u8, 
             }
         }
     } else {
-        gop.value_ptr.* = try self.list_pool.create();
+        gop.value_ptr.* = try self.list_pool.create(self.allocator);
         gop.value_ptr.*.* = .{};
     }
 
@@ -147,7 +147,7 @@ pub fn register(self: *EventManagerBase, target: *EventTarget, typ: []const u8, 
         .object => |o| Function{ .object = try o.persist() },
     };
 
-    const listener = try self.listener_pool.create();
+    const listener = try self.listener_pool.create(self.allocator);
     listener.* = .{
         .node = .{},
         .once = opts.once,

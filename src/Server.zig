@@ -171,7 +171,7 @@ fn handleConnection(self: *Server, socket: posix.socket_t) void {
     const cdp = blk: {
         self.cdp_mutex.lock();
         defer self.cdp_mutex.unlock();
-        break :blk self.cdp_pool.create() catch @panic("OOM");
+        break :blk self.cdp_pool.create(self.app.allocator) catch @panic("OOM");
     };
     defer {
         self.cdp_mutex.lock();
