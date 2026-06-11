@@ -125,7 +125,7 @@ pub const Search = struct {
         search_id: u16 = 0,
         registry: *Registry,
         arena: std.heap.ArenaAllocator,
-        searches: std.ArrayList(Search) = .{},
+        searches: std.ArrayList(Search) = .empty,
 
         pub fn init(allocator: Allocator, registry: *Registry) List {
             return .{

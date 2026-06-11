@@ -38,7 +38,7 @@ json_version_response: []const u8,
 
 active_threads: std.atomic.Value(u32) = .init(0),
 
-cdps: std.ArrayList(*CDP) = .{},
+cdps: std.ArrayList(*CDP) = .empty,
 cdp_mutex: std.Thread.Mutex = .{},
 cdp_pool: std.heap.MemoryPool(CDP),
 
@@ -595,7 +595,7 @@ fn assertWebSocketMessage(expected: []const u8, input: []const u8) !void {
 }
 
 const MockCDP = struct {
-    messages: std.ArrayList([]const u8) = .{},
+    messages: std.ArrayList([]const u8) = .empty,
 
     allocator: Allocator = testing.allocator,
 

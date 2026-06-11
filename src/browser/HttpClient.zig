@@ -2128,7 +2128,7 @@ pub const Transfer = struct {
         first_data_received: bool = false,
 
         // Buffered response body. Filled by dataCallback, consumed in processMessages.
-        stream_buffer: std.ArrayList(u8) = .{},
+        stream_buffer: std.ArrayList(u8) = .empty,
 
         // Error captured in dataCallback to be reported in processMessages.
         callback_error: ?anyerror = null,

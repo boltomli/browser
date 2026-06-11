@@ -212,7 +212,7 @@ pub fn Builder(comptime commands: anytype) type {
                             @compileError("`default` is not allowed for lists");
                         }
                         // Multiples are always initialized the same.
-                        break :blk @as(*const anyopaque, @ptrCast(&@as(T, .{})));
+                        break :blk @as(*const anyopaque, @ptrCast(&T.empty));
                     }
 
                     switch (@typeInfo(option.type)) {
@@ -246,8 +246,8 @@ pub fn Builder(comptime commands: anytype) type {
                 types[j] = T;
                 attrs[j] = .{
                     .default_value_ptr = default,
-                    .is_comptime = false,
-                    .alignment = @alignOf(T),
+                    .@"comptime" = false,
+                    .@"align" = @alignOf(T),
                 };
             }
 

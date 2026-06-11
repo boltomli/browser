@@ -36,14 +36,16 @@ const Queue = std.PriorityQueue(Task, void, struct {
 const Scheduler = @This();
 
 _sequence: u64,
+allocator: std.mem.Allocator,
 low_priority: Queue,
 high_priority: Queue,
 
 pub fn init(allocator: std.mem.Allocator) Scheduler {
     return .{
         ._sequence = 0,
-        .low_priority = Queue.init(allocator, {}),
-        .high_priority = Queue.init(allocator, {}),
+        .allocator = allocator,
+        .low_priority = Queue.empty,
+        .high_priority = Queue.empty,
     };
 }
 
@@ -71,7 +73,7 @@ pub fn add(self: *Scheduler, ctx: *anyopaque, cb: Callback, run_in_ms: u32, opts
     var queue = if (opts.low_priority) &self.low_priority else &self.high_priority;
     const seq = self._sequence + 1;
     self._sequence = seq;
-    return queue.add(.{
+    return queue.push(self.allocator, .{
         .ctx = ctx,
         .callback = cb,
         .sequence = seq,
@@ -127,7 +129,7 @@ fn runQueue(self: *Scheduler, queue: *Queue) !void {
                 std.debug.assert(ms != 0);
             }
             task.run_at = now + ms;
-            try self.low_priority.add(task);
+            try self.low_priority.push(self.allocator, task);
         }
 
         now = milliTimestamp(.monotonic);

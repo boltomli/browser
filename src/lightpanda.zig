@@ -55,7 +55,7 @@ pub const FetchOpts = struct {
     wait_ms: u32 = 5000,
     wait_until: ?Config.WaitUntil = null,
     wait_script: ?[:0]const u8 = null,
-    inject_script: std.ArrayList([]const u8) = .{},
+    inject_script: std.ArrayList([]const u8) = .empty,
     wait_selector: ?[:0]const u8 = null,
     dump: dump.Opts,
     dump_mode: ?Config.DumpFormat = null,

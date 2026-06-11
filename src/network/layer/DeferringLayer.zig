@@ -148,7 +148,7 @@ const DeferredContext = struct {
     forward: Forward,
     node: std.DoublyLinkedList.Node = .{},
 
-    buffered: std.ArrayList(BufferedEvent) = .{},
+    buffered: std.ArrayList(BufferedEvent) = .empty,
     done: bool = false,
     deferring: bool = false,
     terminal: bool = false,

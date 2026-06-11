@@ -25,15 +25,13 @@ const M = @This();
 pub const String = packed struct {
     len: i32,
     payload: packed union {
-        // Zig won't let you put an array in a packed struct/union. But it will
-        // let you put a vector.
-        content: @Vector(12, u8),
-        heap: packed struct { prefix: @Vector(4, u8), ptr: [*]const u8 },
+        content: [12]u8,
+        heap: packed struct { prefix: [4]u8, ptr: [*]const u8 },
     },
 
     const tombstone = -1;
-    pub const empty = String{ .len = 0, .payload = .{ .content = @splat(0) } };
-    pub const deleted = String{ .len = tombstone, .payload = .{ .content = @splat(0) } };
+    pub const empty = String{ .len = 0, .payload = .{ .content = .{0} ** 12 } };
+    pub const deleted = String{ .len = tombstone, .payload = .{ .content = .{0} ** 12 } };
 
     // for packages that already have String imported, then can use String.Global
     pub const Global = M.Global;

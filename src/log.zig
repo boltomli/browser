@@ -116,16 +116,11 @@ pub fn log(scope: Scope, level: Level, msg: []const u8, data: anytype) void {
         return;
     }
 
-    std.debug.lockStdErr();
-    defer std.debug.unlockStdErr();
-
-    var buf: [4096]u8 = undefined;
-    var stderr = std.fs.File.stderr();
-    var writer = stderr.writer(&buf);
-
-    logTo(scope, level, msg, data, &writer.interface) catch |log_err| {
-        std.debug.print("$time={d} $level=fatal $scope={s} $msg=\"log err\" err={s} log_msg=\"{s}\"\n", .{ timestamp(.clock), @errorName(log_err), @tagName(scope), msg });
-    };
+    _ = data;
+    std.debug.print(
+        \\$time={d} $level={s} $scope={s} $msg="{s}"
+    \\
+    , .{ timestamp(.clock), @tagName(level), @tagName(scope), msg });
 }
 
 // Converts each field of `data` into a runtime Value so that a single copy of

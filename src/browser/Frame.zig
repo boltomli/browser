@@ -150,14 +150,14 @@ _blob_urls: std.StringHashMapUnmanaged(*Blob) = .{},
 
 // FileLists owned by `<input type=file>` elements. Each holds refs on its
 // File objects (reference counted via their Blob proto); released at teardown.
-_file_lists: std.ArrayList(*FileList) = .{},
+_file_lists: std.ArrayList(*FileList) = .empty,
 
 /// `load` events that'll be fired before window's `load` event.
 /// A call to `documentIsComplete` (which calls `_documentIsComplete`) resets it.
 /// Double-buffered so that dispatching load events (which may trigger JS that
 /// creates new elements) doesn't invalidate the list while iterating.
-_to_load_1: std.ArrayList(*Element.Html) = .{},
-_to_load_2: std.ArrayList(*Element.Html) = .{},
+_to_load_1: std.ArrayList(*Element.Html) = .empty,
+_to_load_2: std.ArrayList(*Element.Html) = .empty,
 _to_load: *std.ArrayList(*Element.Html) = undefined,
 
 _style_manager: StyleManager,
@@ -174,7 +174,7 @@ _mutation_delivery_scheduled: bool = false,
 _mutation_delivery_depth: u32 = 0,
 
 // List of active IntersectionObservers
-_intersection_observers: std.ArrayList(*IntersectionObserver) = .{},
+_intersection_observers: std.ArrayList(*IntersectionObserver) = .empty,
 _intersection_check_scheduled: bool = false,
 _intersection_delivery_scheduled: bool = false,
 
@@ -192,7 +192,7 @@ _customized_builtin_disconnected_callback_invoked: std.AutoHashMapUnmanaged(*Ele
 _upgrading_element: ?*Node = null,
 
 // List of custom elements that were created before their definition was registered
-_undefined_custom_elements: std.ArrayList(*Element.Html.Custom) = .{},
+_undefined_custom_elements: std.ArrayList(*Element.Html.Custom) = .empty,
 
 // Pending custom-element reactions (connected/disconnected/adopted/attribute
 // changed). Reactions are enqueued during DOM mutation and drained at the
@@ -250,10 +250,10 @@ document: *Document,
 iframe: ?*IFrame = null,
 
 child_frames_sorted: bool = true,
-child_frames: std.ArrayList(*Frame) = .{},
+child_frames: std.ArrayList(*Frame) = .empty,
 
 // Workers created by this frame. Cleaned up when frame is destroyed.
-workers: std.ArrayList(*Worker) = .{},
+workers: std.ArrayList(*Worker) = .empty,
 
 // This is maybe not great. It's a counter on the number of events that we're
 // waiting on before triggering the "load" event. Essentially, we need all

@@ -64,7 +64,7 @@ small: Bucket,
 medium: Bucket,
 large: Bucket,
 allocator: Allocator,
-mutex: std.Thread.Mutex = .{},
+mutex: std.atomic.Mutex = .unlocked,
 entry_pool: std.heap.MemoryPool(Entry),
 
 _leak_track: if (IS_DEBUG) std.StringHashMapUnmanaged(isize) else void = if (IS_DEBUG) .empty else {},
@@ -130,7 +130,7 @@ pub fn acquire(self: *ArenaPool, size_or_bucket: anytype, debug: []const u8) !Al
         @compileError("acquire expects BucketSize or usize, got " ++ @typeName(T));
     };
 
-    self.mutex.lock();
+    while (!self.mutex.tryLock()) {}
     defer self.mutex.unlock();
 
     if (bucket.free_list) |entry| {
@@ -147,7 +147,7 @@ pub fn acquire(self: *ArenaPool, size_or_bucket: anytype, debug: []const u8) !Al
         return entry.arena.allocator();
     }
 
-    const entry = try self.entry_pool.create();
+    const entry = try self.entry_pool.create(self.allocator);
     entry.* = .{
         .next = null,
         .bucket = bucket,
@@ -172,7 +172,7 @@ pub fn release(self: *ArenaPool, allocator: Allocator) void {
     const bucket = entry.bucket;
 
     if (IS_DEBUG) {
-        self.mutex.lock();
+        while (!self.mutex.tryLock()) {}
         defer self.mutex.unlock();
         if (self._leak_track.getPtr(entry.debug)) |count| {
             count.* -= 1;
@@ -188,7 +188,7 @@ pub fn release(self: *ArenaPool, allocator: Allocator) void {
 
     _ = arena.reset(.{ .retain_with_limit = bucket.retain_bytes });
 
-    self.mutex.lock();
+    while (!self.mutex.tryLock()) {}
     defer self.mutex.unlock();
 
     if ((comptime SAFETY) or bucket.free_list_len >= bucket.free_list_max) {

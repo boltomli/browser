@@ -542,8 +542,12 @@ pub fn timestamp(comptime mode: TimestampMode) u64 {
 }
 
 pub fn milliTimestamp(comptime mode: TimestampMode) u64 {
-    if (comptime is_posix == false or mode == .clock) {
-        return @intCast(std.time.milliTimestamp());
+    if (comptime is_posix == false) {
+        @compileError("milliTimestamp requires POSIX");
+    }
+    if (mode == .clock) {
+        const ts = timespec();
+        return @as(u64, @intCast(ts.sec)) * 1000 + @as(u64, @intCast(@divTrunc(ts.nsec, 1_000_000)));
     }
     const ts = timespec();
     return @as(u64, @intCast(ts.sec)) * 1000 + @as(u64, @intCast(@divTrunc(ts.nsec, 1_000_000)));
@@ -560,8 +564,9 @@ pub fn timespec() posix.timespec {
         .linux => posix.CLOCK.BOOTTIME, // continues counting while suspended
         else => posix.CLOCK.MONOTONIC,
     };
-    // unreac
-    return posix.clock_gettime(clock_id) catch unreachable;
+    var ts: posix.timespec = undefined;
+    _ = std.os.linux.clock_gettime(clock_id, &ts);
+    return ts;
 }
 
 fn writeDate(into: []u8, date: Date) u8 {

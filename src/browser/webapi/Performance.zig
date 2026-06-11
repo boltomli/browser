@@ -35,14 +35,14 @@ pub fn registerTypes() []const type {
 const Performance = @This();
 
 _time_origin: u64,
-_entries: std.ArrayList(*Entry) = .{},
+_entries: std.ArrayList(*Entry) = .empty,
 _timing: PerformanceTiming = .{},
 _navigation: PerformanceNavigation = .{},
 _event_counts: EventCounts = .{},
 
 // PerformanceObserver infrastructure. Lives here (rather than on the owning
 // Frame/WorkerGlobalScope) so that both contexts get observers for free.
-_observers: std.ArrayList(*PerformanceObserver) = .{},
+_observers: std.ArrayList(*PerformanceObserver) = .empty,
 _delivery_scheduled: bool = false,
 
 /// Get high-resolution timestamp in microseconds, rounded to 5μs increments

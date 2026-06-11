@@ -4,7 +4,7 @@ const builtin = @import("builtin");
 
 const IS_DEBUG = builtin.mode == .Debug;
 
-const abort = std.posix.abort;
+const abort = std.process.abort;
 
 // tracks how deep within a panic we're panicling
 var panic_level: usize = 0;
@@ -30,41 +30,31 @@ pub noinline fn crash(
             panic_level = panic_level + 1;
 
             {
-                panic_mutex.lock();
+                while (!panic_mutex.tryLock()) {}
                 defer panic_mutex.unlock();
 
-                var buf: [4096]u8 = undefined;
-                var writer_w = std.Io.File.stderr().writerStreaming(null, &buf);
-                const writer = &writer_w.interface;
-
-                writer.writeAll(
+                std.debug.print(
                     \\
                     \\Lightpanda has crashed. Please report the issue:
                     \\https://github.com/lightpanda-io/browser/issues
                     \\or let us know on discord: https://discord.gg/g24PtgD6
                     \\
-                ) catch abort();
+                    \\
+                    \\reason: {s}
+                    \\OS: {s}
+                    \\mode: {s}
+                    \\version: {s}
+                    \\
+                , .{ reason, @tagName(builtin.os.tag), @tagName(builtin.mode), lp.build_config.version });
 
-                writer.print("\nreason: {s}\n", .{reason}) catch abort();
-                writer.print("OS: {s}\n", .{@tagName(builtin.os.tag)}) catch abort();
-                writer.print("mode: {s}\n", .{@tagName(builtin.mode)}) catch abort();
-                writer.print("version: {s}\n", .{lp.build_config.version}) catch abort();
-                inline for (@typeInfo(@TypeOf(args)).@"struct".fields) |f| {
-                    writer.writeAll(f.name ++ ": ") catch break;
-                    lp.log.writeValue(.pretty, @field(args, f.name), writer) catch abort();
-                    writer.writeByte('\n') catch abort();
-                }
-
-                std.debug.dumpCurrentStackTraceToWriter(begin_addr, writer) catch abort();
+                std.debug.dumpCurrentStackTrace(.{ .first_address = begin_addr });
             }
 
             report(reason, begin_addr, args) catch {};
         },
         1 => {
             panic_level = 2;
-            var stderr_w = std.fs.File.stderr().writerStreaming(&.{});
-            const stderr = &stderr_w.interface;
-            stderr.writeAll("panicked during a panic. Aborting.\n") catch abort();
+            std.debug.print("panicked during a panic. Aborting.\n", .{});
         },
         else => {},
     };

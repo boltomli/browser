@@ -43,7 +43,7 @@ max_depth: u32 = std.math.maxInt(u32) - 1,
 
 pub fn jsonStringify(self: @This(), jw: *std.json.Stringify) error{WriteFailed}!void {
     var visitor = JsonVisitor{ .jw = jw, .tree = self };
-    var xpath_buffer: std.ArrayList(u8) = .{};
+    var xpath_buffer: std.ArrayList(u8) = .empty;
     const listener_targets = interactive.buildListenerTargetMap(self.frame, self.arena) catch |err| {
         log.err(.app, "listener map failed", .{ .err = err });
         return error.WriteFailed;

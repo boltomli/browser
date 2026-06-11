@@ -95,7 +95,7 @@ microtask_queues_are_running: bool,
 // Serializes V8 calls that race with TerminateExecution (which can fire from
 // the sighandler thread). Without this, a terminate landing between the
 // IsExecutionTerminating check and PerformCheckpoint trips a V8 debug assert.
-terminate_mutex: std.Thread.Mutex = .{},
+terminate_mutex: std.atomic.Mutex = .unlocked,
 
 // Set from network thread, saying termination should happen. Read from worker
 // thread making sure terminate hasn't been canceled.
@@ -372,7 +372,7 @@ pub fn destroyContext(self: *Env, context: *Context) void {
 
 pub fn runMicrotasks(self: *Env) void {
     if (self.microtask_queues_are_running == false) {
-        self.terminate_mutex.lock();
+        while (!self.terminate_mutex.tryLock()) {}
         defer self.terminate_mutex.unlock();
 
         const v8_isolate = self.isolate.handle;
@@ -523,7 +523,7 @@ pub fn terminatePending(self: *const Env) bool {
 }
 
 pub fn terminate(self: *Env) void {
-    self.terminate_mutex.lock();
+    while (!self.terminate_mutex.tryLock()) {}
     defer self.terminate_mutex.unlock();
     v8.v8__Isolate__TerminateExecution(self.isolate.handle);
 }
@@ -547,7 +547,7 @@ fn terminateInterrupt(_: ?*v8.Isolate, data: ?*anyopaque) callconv(.c) void {
 /// unconditionally; a no-op if termination wasn't pending. Also clears the
 /// requestTerminate gate so any still-pending interrupt becomes a no-op.
 pub fn cancelTerminate(self: *Env) void {
-    self.terminate_mutex.lock();
+    while (!self.terminate_mutex.tryLock()) {}
     defer self.terminate_mutex.unlock();
     self.terminate_requested.store(false, .release);
     v8.v8__Isolate__CancelTerminateExecution(self.isolate.handle);

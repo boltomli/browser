@@ -69,8 +69,8 @@ _active: ?*Page = null,
 // In-flight root navigation
 _pending: ?*Page = null,
 
-_page_destruction_queue: std.ArrayList(*Page) = .{},
-_frame_destruction_queue: std.ArrayList(*Frame) = .{},
+_page_destruction_queue: std.ArrayList(*Page) = .empty,
+_frame_destruction_queue: std.ArrayList(*Frame) = .empty,
 
 // Loader IDs are scoped to the Session: each new BrowserContext gets a
 // fresh counter. Frame IDs (`frame_id_gen`) live on `Browser` instead so

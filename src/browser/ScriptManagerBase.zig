@@ -891,7 +891,7 @@ pub const ModuleSource = struct {
 pub const ImportedModule = struct {
     waiters: u16 = 1,
     state: State = .loading,
-    buffer: std.ArrayList(u8) = .{},
+    buffer: std.ArrayList(u8) = .empty,
 
     pub const State = union(enum) {
         err,
