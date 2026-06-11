@@ -680,7 +680,7 @@ fn trim(str: []const u8) []const u8 {
 }
 
 fn trimLeft(str: []const u8) []const u8 {
-    return std.mem.trimLeft(u8, str, &std.ascii.whitespace);
+    return std.mem.trimStart(u8, str, &std.ascii.whitespace);
 }
 
 fn trimRight(str: []const u8) []const u8 {
