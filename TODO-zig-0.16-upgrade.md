@@ -1,47 +1,41 @@
 # Zig 0.16 Upgrade TODO
 
-## Status: Build system & language builtins done. Std library migration in progress.
+## Status: ~90% done. Remaining are std library API changes.
 
-## Remaining Tasks
+## Completed (this session)
+- [x] ArrayList default init: `= .{}` → `= .empty` (16 files)
+- [x] std.Thread.Mutex → std.atomic.Mutex (ArenaPool, Env, crash_handler, Inbox)
+- [x] PriorityQueue.add → push with allocator (Scheduler)
+- [x] log.zig: simplified to std.debug.print
+- [x] crash_handler: abort API, panic output simplified
+- [x] datetime: clock_gettime → std.os.linux.clock_gettime
+- [x] cli.zig: StructField.Attributes field names changed
+- [x] string.zig: packed union @Vector → [12]u8 → needs further work
+- [x] ArenaPool: MemoryPool.create now requires allocator
 
-### P0 - Blocking compilation
+## Remaining Errors (compile-blocking)
 
-- [ ] **ArrayList default init** - `std.ArrayList(T) = .{}` no longer works (requires allocator)
-  - Files: `Frame.zig`, `ScriptManagerBase.zig`, `AbortSignal.zig`, `Performance.zig`
-  - Options: use `std.ArrayListUnmanaged(T)` or restructure to pass allocator at init
+### P0 - Must fix
 
-- [ ] **std.Io.File.stderr().writerStreaming()** - new I/O API requires `Io` parameter + buffer
-  - Files: `crash_handler.zig`, `log.zig`
-  - Use `std.debug.print()` or provide `Io` + buffer
+- [ ] **string.zig:28** - `[12]u8` not allowed in packed union either
+  - Packed unions can only contain types with bit-packed representation
+  - Solution: remove `packed` from the union, or use raw bytes with `@bitCast`
 
-- [ ] **std.debug.lockStdErr** removed
-  - Files: `log.zig`
-  - Find replacement in std.debug or use Io API
+- [ ] **cli.zig:289** - `std.process.argsWithAllocator` removed
+  - New API: `Args.iterateAllocator(allocator)` from a `std.process.Args` struct
+  - Need to get `Args` from `std.os.argv` or restructure the CLI parsing
 
-- [ ] **@Vector in packed unions** not allowed
-  - Files: `string.zig`
-  - Restructure the packed union to avoid @Vector field
+- [ ] **Inbox.zig:39** - `std.Thread.Mutex` (missed one)
 
-### P1 - Likely blocking compilation (more files)
+### P1 - Other known issues
 
-- [ ] **Other std.Io API changes** - many `std.fs.File.*` and `std.fs.cwd()` calls in src/ may need updating
-  - Grep for `std.fs.File`, `std.fs.cwd()`, `std.fs.Dir` across src/
+- [ ] **@Vector in packed unions** - string.zig needs restructuring
+- [ ] **std.Io.File.stderr().writerStreaming()** - crash_handler, log
+- [ ] **std.debug.lockStdErr** - needs buffer parameter (log.zig done, others?)
+- [ ] **V8 dependency** - local patches in zig-pkg/
 
-- [ ] **std.process API changes** - verify all ArgIterator -> Args.Iterator conversions complete
+### P2 - After compilation
 
-- [ ] **Panic/crash handler** - verify writer works with new Io API
-
-### P2 - Non-blocking but needed before merge
-
-- [ ] **V8 dependency build.zig** - local patches in `zig-pkg/` should be upstreamed or documented
-  - Current patches: `Io.Dir.cwd()`, `statFile` options, `createDir`, timestamp `.nanoseconds`
-
-- [ ] **Run full test suite** - `make test` to find remaining runtime issues
-
-- [ ] **CI validation** - ensure GitHub Actions workflows pass with 0.16
-
-### P3 - Nice to have
-
-- [ ] **zig fmt** - run `zig fmt` on modified files
-
-- [ ] **Performance regression check** - compare benchmark numbers
+- [ ] Run full test suite `make test`
+- [ ] CI validation
+- [ ] Performance regression check
