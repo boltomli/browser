@@ -428,7 +428,7 @@ pub fn inheritOptions(comptime T: type, comptime additions: anytype) type {
         attrs[i] = .{
             .default_value_ptr = field.default_value_ptr,
             .@"comptime" = field.is_comptime,
-            .alignment = field.alignment,
+            .@"align" = field.alignment,
         };
     }
 

@@ -178,7 +178,7 @@ pub const String = extern struct {
         }
 
         if (len <= 12) {
-            return @reduce(.And, a.payload.content == b.payload.content);
+            return std.mem.eql(u8, &a.payload.content, &b.payload.content);
         }
 
         // a.len == b.len at this point

@@ -94,12 +94,12 @@ web_bot_auth: ?WebBotAuth,
 
 connections: []http.Connection,
 available: DoublyLinkedList = .{},
-conn_mutex: std.Thread.Mutex = .{},
+conn_mutex: std.atomic.Mutex = .unlocked,
 
 ws_pool: std.heap.MemoryPool(http.Connection),
 ws_count: usize = 0,
 ws_max: u8,
-ws_mutex: std.Thread.Mutex = .{},
+ws_mutex: std.atomic.Mutex = .unlocked,
 
 pollfds: []posix.pollfd,
 listener: ?Listener = null,
@@ -114,19 +114,19 @@ shutdown: std.atomic.Value(bool) = .init(false),
 // Currently, Network is used sparingly, and we only create it on demand.
 // When Network becomes truly shared, it should become a regular field.
 multi: ?*libcurl.CurlM = null,
-submission_mutex: std.Thread.Mutex = .{},
+submission_mutex: std.atomic.Mutex = .unlocked,
 submission_queue: DoublyLinkedList = .{},
 
 callbacks: [MAX_TICK_CALLBACKS]TickCallback = undefined,
 callbacks_len: usize = 0,
-callbacks_mutex: std.Thread.Mutex = .{},
+callbacks_mutex: std.atomic.Mutex = .unlocked,
 
 // Registered CDP read endpoints. Producer-side (the worker doing
 // register/unregister) and consumer-side (this thread's run loop) are
 // serialized by cdp_mutex. cdp_unregister signals when a link
 // transitions to .removed so unregisterCdp can return.
 cdp_links: DoublyLinkedList = .{},
-cdp_mutex: std.Thread.Mutex = .{},
+cdp_mutex: std.atomic.Mutex = .unlocked,
 cdp_unregister: std.Thread.Condition = .{},
 // Per-iteration snapshot of CdpLinks whose sockets are in pollfds.
 // Sized at maxConnections at init time so we never allocate inside
@@ -369,7 +369,7 @@ pub fn unbind(self: *Network) void {
 }
 
 pub fn onTick(self: *Network, ctx: *anyopaque, callback: *const fn (*anyopaque) void) void {
-    self.callbacks_mutex.lock();
+    while (!self.callbacks_mutex.tryLock()) {}
     defer self.callbacks_mutex.unlock();
 
     lp.assert(self.callbacks_len < MAX_TICK_CALLBACKS, "too many ticks", .{});
@@ -384,7 +384,7 @@ pub fn onTick(self: *Network, ctx: *anyopaque, callback: *const fn (*anyopaque) 
 }
 
 pub fn fireTicks(self: *Network) void {
-    self.callbacks_mutex.lock();
+    while (!self.callbacks_mutex.tryLock()) {}
     defer self.callbacks_mutex.unlock();
 
     for (self.callbacks[0..self.callbacks_len]) |*callback| {
@@ -396,7 +396,7 @@ pub fn fireTicks(self: *Network) void {
 // owns the link and must keep it alive until unregisterCdp is called.
 // The caller must not read from the socket.
 pub fn registerCdp(self: *Network, link: *CdpLink) void {
-    self.cdp_mutex.lock();
+    while (!self.cdp_mutex.tryLock()) {}
     self.cdp_links.append(&link.node);
     self.cdp_dirty = true;
     self.cdp_mutex.unlock();
@@ -409,7 +409,7 @@ pub fn registerCdp(self: *Network, link: *CdpLink) void {
 // the link unsolicited (state == .removed) — returns immediately in
 // that case.
 pub fn unregisterCdp(self: *Network, link: *CdpLink) void {
-    self.cdp_mutex.lock();
+    while (!self.cdp_mutex.tryLock()) {}
     defer self.cdp_mutex.unlock();
     if (link.state == .live) {
         link.state = .unregistering;
@@ -454,7 +454,7 @@ fn dropCdp(self: *Network, link: *CdpLink, err: ?anyerror, notify: bool) void {
 fn prepareCdpPollFds(self: *Network) void {
     const cdp_start = self.cdp_start;
 
-    self.cdp_mutex.lock();
+    while (!self.cdp_mutex.tryLock()) {}
     defer self.cdp_mutex.unlock();
 
     // Idle fast-path: link set unchanged since last rebuild, so the
@@ -494,7 +494,7 @@ fn processCdpEvents(self: *Network) void {
     var any_removed = false;
     const cdp_start = self.cdp_start;
 
-    self.cdp_mutex.lock();
+    while (!self.cdp_mutex.tryLock()) {}
     defer self.cdp_mutex.unlock();
 
     // First pass: pending unregister requests.
@@ -592,7 +592,7 @@ fn processCdpEvents(self: *Network) void {
 // pushes a .disconnect into the worker's inbox and wakes it, so
 // cdp.tick() returns false and the worker exits.
 fn shutdownCdpLinks(self: *Network) void {
-    self.cdp_mutex.lock();
+    while (!self.cdp_mutex.tryLock()) {}
     defer self.cdp_mutex.unlock();
 
     var it = self.cdp_links.first;
@@ -700,7 +700,7 @@ pub fn run(self: *Network) void {
                 // Check if fireTicks submitted new requests (e.g. telemetry
                 // flush). If so, continue the loop to drain and send them
                 // before exiting.
-                self.submission_mutex.lock();
+                while (!self.submission_mutex.tryLock()) {}
                 const has_pending = self.submission_queue.first != null;
                 self.submission_mutex.unlock();
 
@@ -726,7 +726,7 @@ pub fn run(self: *Network) void {
 }
 
 pub fn submitRequest(self: *Network, conn: *http.Connection) void {
-    self.submission_mutex.lock();
+    while (!self.submission_mutex.tryLock()) {}
     self.submission_queue.append(&conn.node);
     self.submission_mutex.unlock();
     self.wakeupPoll();
@@ -737,7 +737,7 @@ fn wakeupPoll(self: *Network) void {
 }
 
 fn drainQueue(self: *Network) void {
-    self.submission_mutex.lock();
+    while (!self.submission_mutex.tryLock()) {}
     defer self.submission_mutex.unlock();
 
     if (self.submission_queue.first == null) return;
@@ -863,7 +863,7 @@ comptime {
 }
 
 pub fn getConnection(self: *Network) ?*http.Connection {
-    self.conn_mutex.lock();
+    while (!self.conn_mutex.tryLock()) {}
     defer self.conn_mutex.unlock();
 
     const node = self.available.popFirst() orelse return null;
@@ -874,7 +874,7 @@ pub fn releaseConnection(self: *Network, conn: *http.Connection) void {
     switch (conn.transport) {
         .websocket => {
             conn.deinit();
-            self.ws_mutex.lock();
+            while (!self.ws_mutex.tryLock()) {}
             defer self.ws_mutex.unlock();
             self.ws_pool.destroy(conn);
             self.ws_count -= 1;
@@ -883,7 +883,7 @@ pub fn releaseConnection(self: *Network, conn: *http.Connection) void {
             conn.reset(self.config, self.ca_blob, self.ip_filter) catch |err| {
                 lp.assert(false, "couldn't reset curl easy", .{ .err = err });
             };
-            self.conn_mutex.lock();
+            while (!self.conn_mutex.tryLock()) {}
             defer self.conn_mutex.unlock();
             self.available.append(&conn.node);
         },
@@ -892,7 +892,7 @@ pub fn releaseConnection(self: *Network, conn: *http.Connection) void {
 
 pub fn newConnection(self: *Network) ?*http.Connection {
     const conn = blk: {
-        self.ws_mutex.lock();
+        while (!self.ws_mutex.tryLock()) {}
         defer self.ws_mutex.unlock();
 
         if (self.ws_count >= self.ws_max) {
@@ -906,7 +906,7 @@ pub fn newConnection(self: *Network) ?*http.Connection {
 
     // don't do this under lock
     conn.* = http.Connection.init(self.ca_blob, self.config, self.ip_filter) catch {
-        self.ws_mutex.lock();
+        while (!self.ws_mutex.tryLock()) {}
         defer self.ws_mutex.unlock();
         self.ws_pool.destroy(conn);
         self.ws_count -= 1;

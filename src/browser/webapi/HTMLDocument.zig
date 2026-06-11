@@ -226,12 +226,24 @@ pub fn getAll(self: *HTMLDocument, frame: *Frame) !*collections.HTMLAllCollectio
 
 pub fn getCookie(_: *HTMLDocument, frame: *Frame) ![]const u8 {
     var buf: std.ArrayList(u8) = .empty;
-    try frame._session.cookie_jar.forRequest(frame.url, buf.writer(frame.call_arena), .{
+    // ArrayList no longer has writer() in Zig 0.16. Use a simple struct wrapper.
+    var writer_ctx = ArrayListWriter{ .buf = &buf };
+    try frame._session.cookie_jar.forRequest(frame.url, &writer_ctx, .{
         .is_http = false,
         .is_navigation = true,
     });
     return buf.items;
 }
+
+const ArrayListWriter = struct {
+    buf: *std.ArrayList(u8),
+    pub fn writeAll(self: *@This(), bytes: []const u8) !void {
+        try self.buf.appendSlice(self.buf.allocator, bytes);
+    }
+    pub fn writeByte(self: *@This(), byte: u8) !void {
+        try self.buf.append(self.buf.allocator, byte);
+    }
+};
 
 pub fn setCookie(_: *HTMLDocument, cookie_str: []const u8, frame: *Frame) ![]const u8 {
     // we use the cookie jar's allocator to parse the cookie because it
