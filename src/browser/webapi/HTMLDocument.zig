@@ -17,6 +17,12 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 const std = @import("std");
+
+fn timestamp() i64 {
+    var ts: std.os.linux.timespec = undefined;
+    _ = std.os.linux.clock_gettime(.REALTIME, &ts);
+    return @intCast(ts.sec);
+}
 const js = @import("../js/js.zig");
 
 const Frame = @import("../Frame.zig");
@@ -238,10 +244,10 @@ pub fn getCookie(_: *HTMLDocument, frame: *Frame) ![]const u8 {
 const ArrayListWriter = struct {
     buf: *std.ArrayList(u8),
     pub fn writeAll(self: *@This(), bytes: []const u8) !void {
-        try self.buf.appendSlice(self.buf.allocator, bytes);
+        try self.buf.appendSlice(bytes);
     }
     pub fn writeByte(self: *@This(), byte: u8) !void {
-        try self.buf.append(self.buf.allocator, byte);
+        try self.buf.append(byte);
     }
 };
 
@@ -257,7 +263,7 @@ pub fn setCookie(_: *HTMLDocument, cookie_str: []const u8, frame: *Frame) ![]con
         c.deinit();
         return ""; // HttpOnly cookies cannot be set from JS
     }
-    try frame._session.cookie_jar.add(c, std.time.timestamp(), false);
+    try frame._session.cookie_jar.add(c, timestamp(), false);
     return cookie_str;
 }
 

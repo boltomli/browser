@@ -235,7 +235,7 @@ pub fn preloadImport(self: *ScriptManagerBase, url: [:0]const u8, referrer: []co
         .node = .{},
         .manager = self,
         .complete = false,
-        .source = .{ .remote = .{} },
+        .source = .{ .remote = .empty },
         .extra = .import,
     };
 
@@ -335,7 +335,7 @@ pub fn getAsyncImport(self: *ScriptManagerBase, url: [:0]const u8, cb: ImportAsy
         .node = .{},
         .manager = self,
         .complete = false,
-        .source = .{ .remote = .{} },
+        .source = .{ .remote = .empty },
         .extra = .{ .import_async = .{
             .callback = cb,
             .data = cb_data,

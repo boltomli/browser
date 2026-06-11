@@ -120,7 +120,7 @@ pub fn preloadScript(self: *ScriptManager, url: []const u8) !void {
         .node = .{},
         .manager = &self.base,
         .complete = false,
-        .source = .{ .remote = .{} },
+        .source = .{ .remote = .empty },
         .extra = .preload,
     };
 
@@ -243,7 +243,7 @@ pub fn addFromElement(self: *ScriptManager, comptime from_parser: bool, script_e
         // synthesizes the response. Execution mode (blocking vs async/defer) is
         // attribute-driven, the same as any other src.
         remote_url = try URL.resolve(arena, base_url, src, .{ .encoding = frame.charset });
-        source = .{ .remote = .{} };
+        source = .{ .remote = .empty };
     } else {
         var buf = std.Io.Writer.Allocating.init(arena);
         try element.asNode().getChildTextContent(&buf.writer);

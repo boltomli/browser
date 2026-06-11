@@ -264,7 +264,10 @@ pub fn Builder(comptime commands: anytype) type {
             var i: usize = 0;
             while (i < commands.len) : (i += 1) {
                 const command = commands[i];
-                const options = command.options;
+                const options = if (@hasField(@TypeOf(command), "shared_options"))
+                    command.options ++ command.shared_options
+                else
+                    command.options;
 
                 const data = optionsToFieldData(options);
 

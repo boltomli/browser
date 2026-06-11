@@ -471,7 +471,7 @@ fn trimLeft(s: []const u8) []const u8 {
 }
 
 fn trimRight(s: []const u8) []const u8 {
-    return std.mem.trimRight(u8, s, &std.ascii.whitespace);
+    return std.mem.trimEnd(u8, s, &std.ascii.whitespace);
 }
 
 const testing = @import("../testing.zig");

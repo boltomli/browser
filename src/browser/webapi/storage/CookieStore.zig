@@ -19,6 +19,12 @@
 const std = @import("std");
 const lp = @import("lightpanda");
 
+fn timestamp() i64 {
+    var ts: std.os.linux.timespec = undefined;
+    _ = std.os.linux.clock_gettime(.REALTIME, &ts);
+    return @intCast(ts.sec);
+}
+
 const js = @import("../../js/js.zig");
 const URL = @import("../../URL.zig");
 const Notification = @import("../../../Notification.zig");
@@ -506,7 +512,7 @@ fn storeCookie(exec: *const Execution, init_: CookieInit, is_delete: bool) !void
     };
 
     // CookieStore is a script API, so is_http = false.
-    try session.cookie_jar.add(cookie, std.time.timestamp(), false);
+    try session.cookie_jar.add(cookie, timestamp(), false);
 }
 
 // Control characters (U+0000–U+001F and U+007F DEL) and `;` cannot appear in

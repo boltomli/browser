@@ -71,7 +71,7 @@ pub const BodyInit = union(enum) {
             },
             .form_data => |fd| {
                 var rand_bytes: [10]u8 = undefined;
-                std.crypto.random.bytes(&rand_bytes);
+                _ = std.os.linux.getrandom(&rand_bytes, rand_bytes.len, 0);
                 const hex = std.fmt.bytesToHex(rand_bytes, .lower);
 
                 var boundary: [24]u8 = undefined;

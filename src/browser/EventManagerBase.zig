@@ -70,10 +70,10 @@ pub fn init(arena: Allocator) EventManagerBase {
     return .{
         .arena = arena,
         .lookup = .{},
-        .list_pool = .init(arena),
-        .listener_pool = .init(arena),
+        .list_pool = .empty,
+        .listener_pool = .empty,
         .dispatch_depth = 0,
-        .deferred_removals = .{},
+        .deferred_removals = .empty,
     };
 }
 

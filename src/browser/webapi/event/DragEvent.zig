@@ -69,7 +69,7 @@ fn initWithTrusted(typ: []const u8, _opts: ?Options, trusted: bool, frame: *Fram
             ._shift_key = opts.shiftKey,
             ._alt_key = opts.altKey,
             ._meta_key = opts.metaKey,
-            ._button = std.meta.intToEnum(MouseEvent.MouseButton, opts.button) catch return error.TypeError,
+            ._button = @as(MouseEvent.MouseButton, @enumFromInt(opts.button)) catch return error.TypeError,
             ._buttons = opts.buttons,
             ._related_target = opts.relatedTarget,
         },

@@ -18,6 +18,12 @@
 
 const std = @import("std");
 
+fn milliTimestamp() i64 {
+    var ts: std.os.linux.timespec = undefined;
+    _ = std.os.linux.clock_gettime(.REALTIME, &ts);
+    return @intCast(ts.sec * 1000);
+}
+
 const js = @import("../js/js.zig");
 const Page = @import("../Page.zig");
 
@@ -53,7 +59,7 @@ pub fn init(
     file.* = .{
         ._proto = blob,
         ._name = try blob._arena.dupe(u8, name),
-        ._last_modified = opts.lastModified orelse std.time.milliTimestamp(),
+        ._last_modified = opts.lastModified orelse milliTimestamp(),
     };
     blob._type = .{ .file = file };
 
