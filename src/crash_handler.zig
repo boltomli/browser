@@ -10,7 +10,7 @@ const abort = std.posix.abort;
 var panic_level: usize = 0;
 
 // Locked to avoid interleaving panic messages from multiple threads.
-var panic_mutex = std.Thread.Mutex{};
+var panic_mutex: std.atomic.Mutex = .unlocked;
 
 // overwrite's Zig default panic handler
 pub fn panic(msg: []const u8, _: ?*std.builtin.StackTrace, begin_addr: ?usize) noreturn {
@@ -33,7 +33,8 @@ pub noinline fn crash(
                 panic_mutex.lock();
                 defer panic_mutex.unlock();
 
-                var writer_w = std.fs.File.stderr().writerStreaming(&.{});
+                var buf: [4096]u8 = undefined;
+                var writer_w = std.Io.File.stderr().writerStreaming(null, &buf);
                 const writer = &writer_w.interface;
 
                 writer.writeAll(

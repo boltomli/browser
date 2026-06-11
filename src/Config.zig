@@ -44,7 +44,7 @@ pub const CDP_KEEPALIVE_CNT: c_int = 3;
 
 const Config = @This();
 
-fn logFilterScopesValidator(allocator: Allocator, args: *std.process.ArgIterator, list: *std.ArrayList(log.Scope)) !void {
+fn logFilterScopesValidator(allocator: Allocator, args: *std.process.Args.Iterator, list: *std.ArrayList(log.Scope)) !void {
     const str = args.next() orelse return error.InvalidOption;
 
     var it = std.mem.splitScalar(u8, str, ',');
@@ -58,7 +58,7 @@ fn logFilterScopesValidator(allocator: Allocator, args: *std.process.ArgIterator
     }
 }
 
-fn logLevelValidator(_: Allocator, args: *std.process.ArgIterator) !?log.Level {
+fn logLevelValidator(_: Allocator, args: *std.process.Args.Iterator) !?log.Level {
     const str = args.next() orelse return error.MissingArgument;
     if (std.mem.eql(u8, str, "error")) {
         return .err;
@@ -102,7 +102,7 @@ const CommonOptions = .{
     .{ .name = "enable_external_stylesheets", .type = bool },
 };
 
-fn dumpValidator(_: Allocator, args: *std.process.ArgIterator) !?DumpFormat {
+fn dumpValidator(_: Allocator, args: *std.process.Args.Iterator) !?DumpFormat {
     // Peek next argument.
     var peek_args = args.*;
     if (peek_args.next()) |next_arg| {
@@ -120,7 +120,7 @@ fn dumpValidator(_: Allocator, args: *std.process.ArgIterator) !?DumpFormat {
     return .html;
 }
 
-fn waitScriptFileValidator(allocator: Allocator, args: *std.process.ArgIterator) !?[:0]const u8 {
+fn waitScriptFileValidator(allocator: Allocator, args: *std.process.Args.Iterator) !?[:0]const u8 {
     const path = args.next() orelse {
         log.fatal(.app, "missing argument value", .{ .arg = "--wait-script-file" });
         return error.InvalidArgument;
@@ -134,7 +134,7 @@ fn waitScriptFileValidator(allocator: Allocator, args: *std.process.ArgIterator)
 
 fn injectScriptFileValidator(
     allocator: Allocator,
-    args: *std.process.ArgIterator,
+    args: *std.process.Args.Iterator,
     list: *std.ArrayList([]const u8),
 ) !void {
     const path = args.next() orelse {

@@ -395,33 +395,44 @@ pub fn populateFromOptions(self: *Event, opts: anytype) void {
 }
 
 pub fn inheritOptions(comptime T: type, comptime additions: anytype) type {
-    var all_fields: []const std.builtin.Type.StructField = &.{};
-
-    if (@hasField(T, "_proto")) {
-        const t_fields = @typeInfo(T).@"struct".fields;
-
-        inline for (t_fields) |field| {
-            if (std.mem.eql(u8, field.name, "_proto")) {
-                const ProtoType = @typeInfo(field.type).pointer.child;
-                if (@hasDecl(ProtoType, "Options")) {
-                    const parent_options = @typeInfo(ProtoType.Options);
-                    all_fields = all_fields ++ parent_options.@"struct".fields;
+    // Collect field data from parent and additions
+    const parent_fields = comptime blk: {
+        var result: []const std.builtin.Type.StructField = &.{};
+        if (@hasField(T, "_proto")) {
+            const t_fields = @typeInfo(T).@"struct".fields;
+            for (t_fields) |field| {
+                if (std.mem.eql(u8, field.name, "_proto")) {
+                    const ProtoType = @typeInfo(field.type).pointer.child;
+                    if (@hasDecl(ProtoType, "Options")) {
+                        const parent_options = @typeInfo(ProtoType.Options);
+                        result = result ++ parent_options.@"struct".fields;
+                    }
                 }
             }
         }
-    }
+        break :blk result;
+    };
 
     const additions_info = @typeInfo(additions);
-    all_fields = all_fields ++ additions_info.@"struct".fields;
+    const all_fields = parent_fields ++ additions_info.@"struct".fields;
 
-    return @Type(.{
-        .@"struct" = .{
-            .layout = .auto,
-            .fields = all_fields,
-            .decls = &.{},
-            .is_tuple = false,
-        },
-    });
+    // Transform to separate arrays for @Struct
+    const field_count = all_fields.len;
+    var names: [field_count][]const u8 = undefined;
+    var types: [field_count]type = undefined;
+    var attrs: [field_count]std.builtin.Type.StructField.Attributes = undefined;
+
+    inline for (all_fields, 0..) |field, i| {
+        names[i] = field.name;
+        types[i] = field.type;
+        attrs[i] = .{
+            .default_value_ptr = field.default_value_ptr,
+            .is_comptime = field.is_comptime,
+            .alignment = field.alignment,
+        };
+    }
+
+    return @Struct(.auto, null, &names, &types, &attrs);
 }
 
 pub fn populatePrototypes(self: anytype, opts: anytype, trusted: bool) void {

@@ -44,8 +44,7 @@ pub fn build(b: *Build) !void {
     const wpt_extensions = b.option(bool, "wpt_extensions", "Extend WebAPI with WPT driver behavior") orelse false;
 
     const version = resolveVersion(b);
-    var stderr = std.fs.File.stderr().writer(&.{});
-    try stderr.interface.print("Lightpanda {f}\n", .{version});
+    std.debug.print("Lightpanda {f}\n", .{version});
 
     const version_string = b.fmt("{f}", .{version});
     const version_encoded = std.mem.replaceOwned(u8, b.allocator, version_string, "+", "%2B") catch @panic("OOM");
@@ -87,6 +86,25 @@ pub fn build(b: *Build) !void {
         try linkV8(b, mod, enable_asan, enable_tsan, prebuilt_v8_path);
         try linkCurl(b, mod, enable_tsan);
         try linkHtml5Ever(b, mod);
+
+        // Translate-c modules for C headers
+        const curl_dep = b.dependency("curl", .{});
+        const translate_curl = b.addTranslateC(.{
+            .root_source_file = b.path("src/sys/curl.h"),
+            .target = target,
+            .optimize = optimize,
+        });
+        translate_curl.addIncludePath(curl_dep.path("include"));
+        mod.addImport("c_curl", translate_curl.createModule());
+
+        const sqlite_dep = b.dependency("sqlite3", .{});
+        const translate_sqlite = b.addTranslateC(.{
+            .root_source_file = b.path("src/storage/sqlite/c.h"),
+            .target = target,
+            .optimize = optimize,
+        });
+        translate_sqlite.addIncludePath(sqlite_dep.path(""));
+        mod.addImport("c_sqlite", translate_sqlite.createModule());
 
         break :blk mod;
     };
@@ -334,7 +352,7 @@ fn buildZlib(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.Opti
 
     const lib = b.addLibrary(.{ .name = "z", .root_module = mod });
     lib.installHeadersDirectory(dep.path(""), "", .{});
-    lib.addCSourceFiles(.{
+    lib.root_module.addCSourceFiles(.{
         .root = dep.path(""),
         .flags = &.{
             "-DHAVE_SYS_TYPES_H",
@@ -370,21 +388,21 @@ fn buildBrotli(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.Op
     const brotlienc = b.addLibrary(.{ .name = "brotlienc", .root_module = mod });
 
     brotlicmn.installHeadersDirectory(dep.path("c/include/brotli"), "brotli", .{});
-    brotlicmn.addCSourceFiles(.{
+    brotlicmn.root_module.addCSourceFiles(.{
         .root = dep.path("c/common"),
         .files = &.{
             "transform.c",  "shared_dictionary.c", "platform.c",
             "dictionary.c", "context.c",           "constants.c",
         },
     });
-    brotlidec.addCSourceFiles(.{
+    brotlidec.root_module.addCSourceFiles(.{
         .root = dep.path("c/dec"),
         .files = &.{
             "bit_reader.c", "decode.c", "huffman.c",
             "prefix.c",     "state.c",  "static_init.c",
         },
     });
-    brotlienc.addCSourceFiles(.{
+    brotlienc.root_module.addCSourceFiles(.{
         .root = dep.path("c/enc"),
         .files = &.{
             "backward_references.c",        "backward_references_hq.c", "bit_cost.c",
@@ -441,7 +459,7 @@ fn buildNghttp2(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.O
 
     lib.installConfigHeader(config);
     lib.installHeadersDirectory(dep.path("lib/includes/nghttp2"), "nghttp2", .{});
-    lib.addCSourceFiles(.{
+    lib.root_module.addCSourceFiles(.{
         .root = dep.path("lib"),
         .flags = &.{
             "-DNGHTTP2_STATICLIB",
@@ -720,9 +738,10 @@ fn buildCurl(
     curl_config.addValues(config);
 
     const lib = b.addLibrary(.{ .name = "curl", .root_module = mod });
-    lib.addConfigHeader(curl_config);
+    lib.installConfigHeader(curl_config);
+    lib.root_module.addConfigHeader(curl_config);
     lib.installHeadersDirectory(dep.path("include/curl"), "curl", .{});
-    lib.addCSourceFiles(.{
+    lib.root_module.addCSourceFiles(.{
         .root = dep.path("lib"),
         .flags = &.{
             "-D_GNU_SOURCE",
@@ -849,5 +868,5 @@ fn runGit(b: *std.Build, args: []const []const u8) ![]const u8 {
     defer command.deinit(b.allocator);
     try command.appendSlice(b.allocator, &.{ "git", "-C", dir });
     try command.appendSlice(b.allocator, args);
-    return b.runAllowFail(command.items, &code, .Ignore);
+    return b.runAllowFail(command.items, &code, .ignore);
 }

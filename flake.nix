@@ -7,7 +7,7 @@
     zigPkgs.url = "github:mitchellh/zig-overlay";
     zigPkgs.inputs.nixpkgs.follows = "nixpkgs";
 
-    zlsPkg.url = "github:zigtools/zls/0.15.0";
+    zlsPkg.url = "github:zigtools/zls/0.16.0";
     zlsPkg.inputs.zig-overlay.follows = "zigPkgs";
     zlsPkg.inputs.nixpkgs.follows = "nixpkgs";
 
@@ -57,7 +57,7 @@
           targetPkgs =
             pkgs: with pkgs; [
               # Build Tools
-              zigpkgs."0.15.2"
+              zigpkgs."0.16.0"
               zls
               rustToolchain
               python3

@@ -89,7 +89,7 @@ fn request(ptr: *anyopaque, transfer: *Transfer) anyerror!void {
                 fn abort(ctx_ptr: ?*anyopaque) void {
                     const c: *CachedResponse = @ptrCast(@alignCast(ctx_ptr.?));
                     switch (c.data) {
-                        .buffer => |_| {},
+                        .buffer => {},
                         .file => |f| f.file.close(),
                     }
                 }
@@ -130,7 +130,7 @@ fn request(ptr: *anyopaque, transfer: *Transfer) anyerror!void {
 fn serveFromCache(req: *Request, cached: *const CachedResponse) !void {
     const response = Response.fromCached(req.ctx, cached);
     defer switch (cached.data) {
-        .buffer => |_| {},
+        .buffer => {},
         .file => |f| f.file.close(),
     };
 

@@ -421,24 +421,13 @@ fn serializeFunctionArgs(local: *const Local, info: FunctionCallbackInfo) ![]con
 // @call a function
 fn ParameterTypes(comptime F: type) type {
     const params = @typeInfo(F).@"fn".params;
-    var fields: [params.len]std.builtin.Type.StructField = undefined;
+    var types: [params.len]type = undefined;
 
     inline for (params, 0..) |param, i| {
-        fields[i] = .{
-            .name = tupleFieldName(i),
-            .type = param.type.?,
-            .default_value_ptr = null,
-            .is_comptime = false,
-            .alignment = @alignOf(param.type.?),
-        };
+        types[i] = param.type.?;
     }
 
-    return @Type(.{ .@"struct" = .{
-        .layout = .auto,
-        .decls = &.{},
-        .fields = &fields,
-        .is_tuple = true,
-    } });
+    return @Tuple(&types);
 }
 
 fn tupleFieldName(comptime i: usize) [:0]const u8 {
@@ -804,7 +793,7 @@ fn getArgs(comptime F: type, comptime offset: usize, local: *const Local, info: 
         // to bind it to a JS argument.
         const LastParamType = params[params.len - 1].type.?;
         if (comptime isFrame(LastParamType) or isPage(LastParamType) or isExecution(LastParamType) or isSession(LastParamType)) {
-            @field(args, tupleFieldName(params.len - 1 + offset)) = getGlobalArg(LastParamType, local.ctx);
+                @field(args, tupleFieldName(params.len - 1 + offset)) = getGlobalArg(LastParamType, local.ctx);
             break :blk params[0 .. params.len - 1];
         }
 

@@ -170,30 +170,32 @@ pub fn Builder(comptime commands: anytype) type {
         /// Enum type for provided commands.
         pub const Enum = blk: {
             const len = commands.len + 1;
-            var enum_fields: [len]std.builtin.Type.EnumField = undefined;
+            var names: [len][]const u8 = undefined;
+            var values: [len]std.math.IntFittingRange(0, len) = undefined;
 
             var i: usize = 0;
             while (i < commands.len) : (i += 1) {
                 const command = commands[i];
-                enum_fields[i] = .{ .name = command.name, .value = i };
+                names[i] = command.name;
+                values[i] = i;
             }
 
             // Entry for help.
-            enum_fields[i] = .{ .name = "help", .value = i };
+            names[i] = "help";
+            values[i] = i;
 
-            break :blk @Type(.{
-                .@"enum" = .{
-                    .decls = &.{},
-                    .fields = &enum_fields,
-                    .is_exhaustive = true,
-                    .tag_type = std.math.IntFittingRange(0, len),
-                },
-            });
+            break :blk @Enum(std.math.IntFittingRange(0, len), .exhaustive, &names, &values);
         };
 
-        /// Creates an array of `StructField` out of given options.
-        fn optionsToStructFields(comptime options: anytype) [options.len]std.builtin.Type.StructField {
-            var fields: [options.len]std.builtin.Type.StructField = undefined;
+        /// Creates field data out of given options.
+        fn optionsToFieldData(comptime options: anytype) struct {
+            names: [options.len][]const u8,
+            types: [options.len]type,
+            attrs: [options.len]std.builtin.Type.StructField.Attributes,
+        } {
+            var names: [options.len][]const u8 = undefined;
+            var types: [options.len]type = undefined;
+            var attrs: [options.len]std.builtin.Type.StructField.Attributes = undefined;
 
             inline for (options, 0..) |option, j| {
                 // Whether prefer `ArrayList` for the option.
@@ -240,71 +242,46 @@ pub fn Builder(comptime commands: anytype) type {
                     }
                 };
 
-                fields[j] = .{
-                    .name = option.name,
-                    .type = T,
+                names[j] = option.name;
+                types[j] = T;
+                attrs[j] = .{
                     .default_value_ptr = default,
                     .is_comptime = false,
                     .alignment = @alignOf(T),
                 };
             }
 
-            return fields;
+            return .{ .names = names, .types = types, .attrs = attrs };
         }
 
         /// Union type for provided commands.
         pub const Union = blk: {
             const len = commands.len + 1;
-            var union_fields: [len]std.builtin.Type.UnionField = undefined;
+            var union_names: [len][]const u8 = undefined;
+            var union_types: [len]type = undefined;
+            var union_attrs: [len]std.builtin.Type.UnionField.Attributes = undefined;
 
             var i: usize = 0;
             while (i < commands.len) : (i += 1) {
                 const command = commands[i];
-                const Command = @TypeOf(command);
                 const options = command.options;
 
-                const fields = optionsToStructFields(options) ++
-                    (if (@hasField(Command, "shared_options"))
-                        optionsToStructFields(command.shared_options)
-                    else
-                        .{}) ++
-                    (if (@hasField(Command, "positional"))
-                        [1]std.builtin.Type.StructField{
-                            .{
-                                .name = command.positional.name,
-                                .type = command.positional.type,
-                                .default_value_ptr = @ptrCast(&@as(command.positional.type, null)),
-                                .is_comptime = false,
-                                .alignment = @alignOf(command.positional.type),
-                            },
-                        }
-                    else
-                        .{});
+                const data = optionsToFieldData(options);
 
-                const T = @Type(.{
-                    .@"struct" = .{
-                        .decls = &.{},
-                        .fields = &fields,
-                        .is_tuple = false,
-                        .layout = .auto,
-                    },
-                });
+                const T = @Struct(.auto, null, &data.names, &data.types, &data.attrs);
 
-                union_fields[i] = .{ .name = command.name, .type = T, .alignment = @alignOf(T) };
+                union_names[i] = command.name;
+                union_types[i] = T;
+                union_attrs[i] = .{};
             }
 
             // Entry for help; just takes `Enum` itself.
             const Help = Enum;
-            union_fields[i] = .{ .name = "help", .type = Help, .alignment = @alignOf(Help) };
+            union_names[i] = "help";
+            union_types[i] = Help;
+            union_attrs[i] = .{};
 
-            break :blk @Type(.{
-                .@"union" = .{
-                    .decls = &.{},
-                    .fields = &union_fields,
-                    .layout = .auto,
-                    .tag_type = Enum,
-                },
-            });
+            break :blk @Union(.auto, Enum, &union_names, &union_types, &union_attrs);
         };
 
         /// Parses executable name, command and options via single call.

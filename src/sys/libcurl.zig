@@ -19,9 +19,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
-const c = @cImport({
-    @cInclude("curl/curl.h");
-});
+const c = @import("c_curl");
 
 const IS_DEBUG = builtin.mode == .Debug;
 
