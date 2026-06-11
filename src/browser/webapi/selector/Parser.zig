@@ -135,7 +135,7 @@ pub fn parseList(arena: Allocator, input: []const u8) ParseError![]const Selecto
             }
         }
 
-        const selector_input = std.mem.trimRight(u8, trimmed[0..comma_pos], &std.ascii.whitespace);
+        const selector_input = std.mem.trimEnd(u8, trimmed[0..comma_pos], &std.ascii.whitespace);
 
         if (selector_input.len > 0) {
             const selector = try parse(arena, selector_input);
