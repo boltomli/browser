@@ -50,7 +50,7 @@ pub const Registry = struct {
             .lookup_by_node = .{},
             .allocator = allocator,
             .arena = std.heap.ArenaAllocator.init(allocator),
-            .node_pool = std.heap.MemoryPool(Node).init(allocator),
+            .node_pool = .empty,
         };
     }
 
@@ -66,7 +66,7 @@ pub const Registry = struct {
         self.lookup_by_id.clearRetainingCapacity();
         self.lookup_by_node.clearRetainingCapacity();
         _ = self.arena.reset(.{ .retain_with_limit = 1024 });
-        _ = self.node_pool.reset(.{ .retain_with_limit = 1024 });
+        _ = self.node_pool.reset(self.allocator, .{ .retain_with_limit = 1024 });
     }
 
     pub fn register(self: *Registry, dom_node: *DOMNode) !*Node {
@@ -140,7 +140,7 @@ pub const Search = struct {
 
         pub fn reset(self: *List) void {
             self.search_id = 0;
-            self.searches = .{};
+            self.searches = .empty;
             _ = self.arena.reset(.{ .retain_with_limit = 4096 });
         }
 

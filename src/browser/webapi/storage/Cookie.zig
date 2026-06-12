@@ -463,7 +463,7 @@ pub const Jar = struct {
 
     pub fn init(allocator: Allocator, notification: ?*Notification) Jar {
         return .{
-            .cookies = .{},
+            .cookies = .empty,
             .allocator = allocator,
             .notification = notification,
         };

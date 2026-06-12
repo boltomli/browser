@@ -22,7 +22,7 @@ network: *Network,
 writer: std.Io.Writer.Allocating,
 
 /// Protects concurrent producers in send().
-mutex: std.Thread.Mutex = .{},
+mutex: std.atomic.Mutex = .unlocked,
 
 iid: ?[36]u8 = null,
 run_mode: Config.RunMode = .serve,
