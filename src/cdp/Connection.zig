@@ -54,7 +54,7 @@ pub fn init(
     inbox: *Inbox,
     arena_pool: *ArenaPool,
 ) !void {
-    const socket_flags = try posix.fcntl(socket, posix.F.GETFL, 0);
+    const socket_flags = try std.os.linux.fcntl(socket, posix.F.GETFL, 0);
     const nonblocking = @as(u32, @bitCast(posix.O{ .NONBLOCK = true }));
     if (builtin.is_test == false) {
         lp.assert(socket_flags & nonblocking == nonblocking, "Connection.init blocking", .{});
@@ -84,29 +84,27 @@ pub fn send(self: *Connection, data: []const u8) !void {
     defer if (changed_to_blocking) {
         // We had to change our socket to blocking me to get our write out
         // We need to change it back to non-blocking.
-        _ = posix.fcntl(self.socket, posix.F.SETFL, self.socket_flags) catch |err| {
+        _ = std.os.linux.fcntl(self.socket, posix.F.SETFL, self.socket_flags) catch |err| {
             log.err(.app, "ws restore nonblocking", .{ .err = err });
         };
     };
 
     LOOP: while (pos < data.len) {
-        const written = posix.write(self.socket, data[pos..]) catch |err| switch (err) {
-            error.WouldBlock => {
-                // self.socket is nonblocking, because we don't want to block
-                // reads. But our life is a lot easier if we block writes,
-                // largely, because we don't have to maintain a queue of pending
-                // writes (which would each need their own allocations). So
-                // if we get a WouldBlock error, we'll switch the socket to
-                // blocking and switch it back to non-blocking after the write
-                // is complete. Doesn't seem particularly efficiently, but
-                // this should virtually never happen.
-                lp.assert(changed_to_blocking == false, "Connection.double block", .{});
-                changed_to_blocking = true;
-                _ = try posix.fcntl(self.socket, posix.F.SETFL, self.socket_flags & ~@as(u32, @bitCast(posix.O{ .NONBLOCK = true })));
-                continue :LOOP;
-            },
-            else => return err,
-        };
+        const rc = std.os.linux.write(self.socket, data[pos..].ptr, data[pos..].len);
+
+        if (std.os.linux.errno(rc) != .SUCCESS) {
+            switch (std.os.linux.errno(rc)) {
+                .AGAIN => {
+                    lp.assert(changed_to_blocking == false, "Connection.double block", .{});
+                    changed_to_blocking = true;
+                    _ = try std.os.linux.fcntl(self.socket, posix.F.SETFL, self.socket_flags & ~@as(u32, @bitCast(posix.O{ .NONBLOCK = true })));
+                    continue :LOOP;
+                },
+                else => return error.WriteError,
+            }
+        }
+
+        const written: usize = @intCast(rc);
 
         if (written == 0) {
             return error.Closed;

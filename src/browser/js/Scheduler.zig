@@ -113,7 +113,7 @@ fn runQueue(self: *Scheduler, queue: *Queue) !void {
         if (task_.run_at > now) {
             return;
         }
-        var task = queue.remove();
+        var task = queue.pop() orelse return;
         if (comptime IS_DEBUG) {
             log.debug(.scheduler, "scheduler.runTask", .{ .name = task.name });
         }

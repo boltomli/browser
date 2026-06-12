@@ -535,7 +535,9 @@ pub const TimestampMode = enum {
 };
 pub fn timestamp(comptime mode: TimestampMode) u64 {
     if (comptime is_posix == false or mode == .clock) {
-        return @intCast(std.time.timestamp());
+        var ts: std.os.linux.timespec = undefined;
+        _ = std.os.linux.clock_gettime(.REALTIME, &ts);
+        return @intCast(ts.sec);
     }
     const ts = timespec();
     return @intCast(ts.sec);

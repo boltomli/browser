@@ -25,7 +25,7 @@ const Allocator = std.mem.Allocator;
 const Pool = @This();
 
 available: usize,
-mutex: Thread.Mutex,
+mutex: std.atomic.Mutex = .unlocked,
 cond: Thread.Condition,
 conns: []Sqlite.Conn,
 
@@ -68,7 +68,7 @@ pub fn deinit(self: *Pool, allocator: Allocator) void {
 pub fn acquire(self: *Pool) !Sqlite.Conn {
     const conns = self.conns;
 
-    self.mutex.lock();
+    while (!self.mutex.tryLock()) {}
     while (true) {
         const available = self.available;
         if (available == 0) {
@@ -86,7 +86,7 @@ pub fn acquire(self: *Pool) !Sqlite.Conn {
 pub fn release(self: *Pool, conn: Sqlite.Conn) void {
     var conns = self.conns;
 
-    self.mutex.lock();
+    while (!self.mutex.tryLock()) {}
     const available = self.available;
     conns[available] = conn;
     self.available = available + 1;

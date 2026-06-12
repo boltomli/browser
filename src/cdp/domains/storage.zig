@@ -23,6 +23,12 @@ const CDP = @import("../CDP.zig");
 const URL = @import("../../browser/URL.zig");
 const Cookie = @import("../../browser/webapi/storage/storage.zig").Cookie;
 
+fn timestamp() i64 {
+    var ts: std.os.linux.timespec = undefined;
+    _ = std.os.linux.clock_gettime(.REALTIME, &ts);
+    return @intCast(ts.sec);
+}
+
 const log = lp.log;
 const CookieJar = Cookie.Jar;
 pub const PreparedUri = Cookie.PreparedUri;
@@ -171,7 +177,7 @@ pub fn setCdpCookie(cookie_jar: *CookieJar, param: CdpCookie) !void {
             },
         };
     };
-    try cookie_jar.add(cookie, std.time.timestamp(), true);
+    try cookie_jar.add(cookie, timestamp(), true);
 }
 
 pub const CookieWriter = struct {

@@ -47,7 +47,7 @@ queue: DoublyLinkedList = .{},
 terminated: bool = false,
 
 pub fn deinit(self: *Inbox, arena_pool: *ArenaPool) void {
-    while (!self.mutex.tryLock()) {};
+    while (!self.mutex.tryLock()) {}
     defer self.mutex.unlock();
     while (self.queue.popFirst()) |node| {
         const msg: *Message = @fieldParentPtr("node", node);
@@ -61,13 +61,13 @@ pub fn push(self: *Inbox, arena: Allocator, payload: Message.Payload) void {
     };
 
     msg.* = .{ .payload = payload, .arena = arena };
-    while (!self.mutex.tryLock()) {};
+    while (!self.mutex.tryLock()) {}
     defer self.mutex.unlock();
     self.queue.append(&msg.node);
 }
 
 pub fn pop(self: *Inbox) ?*Message {
-    while (!self.mutex.tryLock()) {};
+    while (!self.mutex.tryLock()) {}
     defer self.mutex.unlock();
     const node = self.queue.popFirst() orelse return null;
     return @fieldParentPtr("node", node);
@@ -78,7 +78,7 @@ pub fn pop(self: *Inbox) ?*Message {
 // safely dispatch mid-parse) so it can abort the blocking fetch instead
 // of stalling for the full per-request timeout.
 pub fn contains(self: *Inbox, predicate: *const fn (*Message) bool) bool {
-    while (!self.mutex.tryLock()) {};
+    while (!self.mutex.tryLock()) {}
     defer self.mutex.unlock();
     var it = self.queue.first;
     while (it) |node| : (it = node.next) {
@@ -94,7 +94,7 @@ pub fn contains(self: *Inbox, predicate: *const fn (*Message) bool) bool {
 // safe subset of messages during sync-wait paths (the allowlist),
 // while leaving unsafe ones to be drained at the next safe point.
 pub fn popIf(self: *Inbox, predicate: *const fn (*Message) bool) ?*Message {
-    while (!self.mutex.tryLock()) {};
+    while (!self.mutex.tryLock()) {}
     defer self.mutex.unlock();
     var it = self.queue.first;
     while (it) |node| : (it = node.next) {

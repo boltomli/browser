@@ -303,7 +303,7 @@ pub fn init(allocator: Allocator) !*Notification {
         .listeners = .{},
         .event_listeners = .{},
         .allocator = allocator,
-        .mem_pool = std.heap.MemoryPool(Listener).init(allocator),
+        .mem_pool = .empty,
     };
 
     return notification;
@@ -317,7 +317,7 @@ pub fn deinit(self: *Notification) void {
         listener.deinit(allocator);
     }
     self.listeners.deinit(allocator);
-    self.mem_pool.deinit();
+    self.mem_pool.deinit(allocator);
     allocator.destroy(self);
 }
 

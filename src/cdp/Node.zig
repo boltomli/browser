@@ -58,7 +58,7 @@ pub const Registry = struct {
         const allocator = self.allocator;
         self.lookup_by_id.deinit(allocator);
         self.lookup_by_node.deinit(allocator);
-        self.node_pool.deinit();
+        self.node_pool.deinit(allocator);
         self.arena.deinit();
     }
 

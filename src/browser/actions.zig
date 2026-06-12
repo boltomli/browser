@@ -208,11 +208,15 @@ pub fn scroll(node: ?*DOMNode, x: ?i32, y: ?i32, frame: *Frame) !void {
 }
 
 pub fn waitForSelector(selector: [:0]const u8, timeout_ms: u32, session: *Session) !*DOMNode {
-    var timer = try std.time.Timer.start();
+    var ts: std.os.linux.timespec = undefined;
+    _ = std.os.linux.clock_gettime(.MONOTONIC, &ts);
+    const start_ns: u64 = @as(u64, @intCast(ts.sec)) * std.time.ns_per_s + @as(u64, @intCast(ts.nsec));
     var runner = try session.runner(.{});
     try runner.wait(.{ .ms = timeout_ms, .until = .load });
 
-    const elapsed: u32 = @intCast(timer.read() / std.time.ns_per_ms);
+    _ = std.os.linux.clock_gettime(.MONOTONIC, &ts);
+    const now_ns: u64 = @as(u64, @intCast(ts.sec)) * std.time.ns_per_s + @as(u64, @intCast(ts.nsec));
+    const elapsed: u32 = @intCast((now_ns - start_ns) / @as(u64, std.time.ns_per_ms));
     const remaining = timeout_ms -| elapsed;
     if (remaining == 0) return error.Timeout;
 

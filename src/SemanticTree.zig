@@ -187,7 +187,7 @@ fn walk(
     }
 
     const initial_xpath_len = ctx.xpath_buffer.items.len;
-    try appendXPathSegment(node, ctx.xpath_buffer.writer(self.arena), index);
+    try appendXPathSegment(node, ctx.xpath_buffer, self.arena, index);
     const xpath = ctx.xpath_buffer.items;
 
     var name = try axn.getName(self.frame, self.arena);
@@ -263,7 +263,7 @@ fn walk(
         // If we are printing this node normally OR skipping it and unrolling its children,
         // we walk the children iterator.
         var it = node.childrenIterator();
-        var tag_counts = std.StringArrayHashMap(usize).init(self.arena);
+        var tag_counts = std.StringArrayHashMapUnmanaged(usize).init(self.arena);
         while (it.next()) |child| {
             var tag: []const u8 = "text()";
             if (child.is(Element)) |el| {
@@ -324,12 +324,12 @@ fn extractDataListOptions(list_id: []const u8, frame: *Frame, arena: std.mem.All
     return null;
 }
 
-fn appendXPathSegment(node: *Node, writer: anytype, index: usize) !void {
+fn appendXPathSegment(node: *Node, buf: *std.ArrayList(u8), allocator: std.mem.Allocator, index: usize) !void {
     if (node.is(Element)) |el| {
         const tag = el.getTagNameLower();
-        try std.fmt.format(writer, "/{s}[{d}]", .{ tag, index });
+        try buf.print(allocator, "/{s}[{d}]", .{ tag, index });
     } else if (node.is(CData.Text)) |_| {
-        try std.fmt.format(writer, "/text()[{d}]", .{index});
+        try buf.print(allocator, "/text()[{d}]", .{index});
     }
 }
 
