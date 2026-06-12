@@ -308,7 +308,7 @@ fn initWithTrusted(arena: Allocator, typ: String, _opts: ?Options, trusted: bool
         KeyboardEvent{
             ._proto = undefined,
             ._key = try Key.fromString(arena, opts.key),
-            ._location = @as(Location, @enumFromInt(opts.location)) catch return error.TypeError,
+            ._location = @enumFromInt(opts.location),
             ._code = if (opts.code) |c| try arena.dupe(u8, c) else "",
             ._repeat = opts.repeat,
             ._is_composing = opts.isComposing,
@@ -418,7 +418,7 @@ pub fn initKeyboardEvent(
     event._cancelable = cancelable orelse false;
     ui._view = view;
     self._key = try Key.fromString(arena, key orelse "");
-    self._location = @as(Location, @enumFromInt(location orelse 0)) catch return error.TypeError;
+    self._location = @enumFromInt(location orelse 0);
     self._ctrl_key = ctrl_key orelse false;
     self._alt_key = alt_key orelse false;
     self._shift_key = shift_key orelse false;

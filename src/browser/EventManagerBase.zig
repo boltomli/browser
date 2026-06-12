@@ -138,7 +138,7 @@ pub fn register(self: *EventManagerBase, target: *EventTarget, typ: []const u8, 
             }
         }
     } else {
-        gop.value_ptr.* = try self.list_pool.create(self.allocator);
+        gop.value_ptr.* = try self.list_pool.create(self.arena);
         gop.value_ptr.*.* = .{};
     }
 

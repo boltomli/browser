@@ -233,7 +233,7 @@ pub fn getAll(self: *HTMLDocument, frame: *Frame) !*collections.HTMLAllCollectio
 pub fn getCookie(_: *HTMLDocument, frame: *Frame) ![]const u8 {
     var buf: std.ArrayList(u8) = .empty;
     // ArrayList no longer has writer() in Zig 0.16. Use a simple struct wrapper.
-    var writer_ctx = ArrayListWriter{ .buf = &buf };
+    var writer_ctx = ArrayListWriter{ .buf = &buf, .allocator = frame.call_arena };
     try frame._session.cookie_jar.forRequest(frame.url, &writer_ctx, .{
         .is_http = false,
         .is_navigation = true,
@@ -243,11 +243,12 @@ pub fn getCookie(_: *HTMLDocument, frame: *Frame) ![]const u8 {
 
 const ArrayListWriter = struct {
     buf: *std.ArrayList(u8),
+    allocator: std.mem.Allocator,
     pub fn writeAll(self: *@This(), bytes: []const u8) !void {
-        try self.buf.appendSlice(bytes);
+        try self.buf.appendSlice(self.allocator, bytes);
     }
     pub fn writeByte(self: *@This(), byte: u8) !void {
-        try self.buf.append(byte);
+        try self.buf.append(self.allocator, byte);
     }
 };
 

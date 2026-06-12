@@ -113,7 +113,7 @@ fn initWithTrusted(arena: Allocator, typ: String, _opts: ?Options, trusted: bool
             ._shift_key = opts.shiftKey,
             ._alt_key = opts.altKey,
             ._meta_key = opts.metaKey,
-            ._button = @as(MouseButton, @enumFromInt(opts.button)) catch return error.TypeError,
+            ._button = @enumFromInt(opts.button),
             ._buttons = opts.buttons,
             ._related_target = opts.relatedTarget,
         },
@@ -250,7 +250,7 @@ pub fn initMouseEvent(
     self._alt_key = alt_key orelse false;
     self._shift_key = shift_key orelse false;
     self._meta_key = meta_key orelse false;
-    self._button = @as(MouseButton, @enumFromInt(button orelse 0)) catch return error.TypeError;
+    self._button = @enumFromInt(button orelse 0);
     self._related_target = related_target;
 }
 

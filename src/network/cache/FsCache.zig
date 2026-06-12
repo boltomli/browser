@@ -34,7 +34,7 @@ comptime {
 
 pub const FsCache = @This();
 
-dir: std.fs.Dir,
+dir: std.Io.Dir,
 locks: [LOCK_STRIPES]std.Thread.Mutex = .{std.Thread.Mutex{}} ** LOCK_STRIPES,
 
 const CacheMetadataJson = struct {

@@ -492,7 +492,7 @@ pub fn Builder(comptime commands: anytype) type {
 
                         // DupeZ branch.
                         if (comptime pointer.sentinel()) |sentinel| {
-                            const buf = try allocator.alignedAlloc(u8, .fromByteUnits(pointer.alignment), str.len + 1);
+                            const buf = try allocator.alignedAlloc(u8, std.mem.Alignment.fromByteUnitsOptional(pointer.alignment), str.len + 1);
                             @memcpy(buf[0..str.len], str);
                             buf[str.len] = sentinel;
                             break :blk buf[0..str.len :sentinel];

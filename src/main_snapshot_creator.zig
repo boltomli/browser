@@ -35,14 +35,14 @@ pub fn main(init: std.process.Init) !void {
     _ = args_iter.next(); // executable name
     if (args_iter.next()) |n| {
         is_stdout = false;
-        file = try std.Io.Dir.cwd().createFile(std.Io.File.stderr().io, n, .{});
+        file = try std.Io.Dir.cwd().createFile(init.io, n, .{});
     }
     defer if (!is_stdout) {
-        file.close(std.Io.File.stderr().io);
+        file.close(init.io);
     };
 
     var buffer: [4096]u8 = undefined;
-    var writer = file.writer(std.Io.File.stderr().io, &buffer);
+    var writer = file.writer(init.io, &buffer);
     try snapshot.write(&writer.interface);
     try writer.end();
 }
