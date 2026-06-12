@@ -263,14 +263,14 @@ fn walk(
         // If we are printing this node normally OR skipping it and unrolling its children,
         // we walk the children iterator.
         var it = node.childrenIterator();
-        var tag_counts = std.StringArrayHashMapUnmanaged(usize).init(self.arena);
+        var tag_counts = std.StringArrayHashMapUnmanaged(usize).empty;
         while (it.next()) |child| {
             var tag: []const u8 = "text()";
             if (child.is(Element)) |el| {
                 tag = el.getTagNameLower();
             }
 
-            const gop = try tag_counts.getOrPut(tag);
+            const gop = try tag_counts.getOrPut(self.arena, tag);
             if (!gop.found_existing) {
                 gop.value_ptr.* = 0;
             }

@@ -127,7 +127,7 @@ callbacks_mutex: std.atomic.Mutex = .unlocked,
 // transitions to .removed so unregisterCdp can return.
 cdp_links: DoublyLinkedList = .{},
 cdp_mutex: std.atomic.Mutex = .unlocked,
-cdp_unregister: std.Io.Condition = .{},
+cdp_unregister: std.Io.Condition = std.Io.Condition.init,
 // Per-iteration snapshot of CdpLinks whose sockets are in pollfds.
 // Sized at maxConnections at init time so we never allocate inside
 // run(). Parallel to pollfds[cdp_start..cdp_start + cdp_poll_count].

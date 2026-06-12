@@ -84,9 +84,7 @@ pub fn send(self: *Connection, data: []const u8) !void {
     defer if (changed_to_blocking) {
         // We had to change our socket to blocking me to get our write out
         // We need to change it back to non-blocking.
-        _ = std.os.linux.fcntl(self.socket, posix.F.SETFL, self.socket_flags) catch |err| {
-            log.err(.app, "ws restore nonblocking", .{ .err = err });
-        };
+        _ = std.os.linux.fcntl(self.socket, posix.F.SETFL, self.socket_flags);
     };
 
     LOOP: while (pos < data.len) {
@@ -97,7 +95,7 @@ pub fn send(self: *Connection, data: []const u8) !void {
                 .AGAIN => {
                     lp.assert(changed_to_blocking == false, "Connection.double block", .{});
                     changed_to_blocking = true;
-                    _ = try std.os.linux.fcntl(self.socket, posix.F.SETFL, self.socket_flags & ~@as(u32, @bitCast(posix.O{ .NONBLOCK = true })));
+                    _ = std.os.linux.fcntl(self.socket, posix.F.SETFL, self.socket_flags & ~@as(u32, @bitCast(posix.O{ .NONBLOCK = true })));
                     continue :LOOP;
                 },
                 else => return error.WriteError,

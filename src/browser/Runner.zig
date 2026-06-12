@@ -20,6 +20,12 @@ const std = @import("std");
 const lp = @import("lightpanda");
 const builtin = @import("builtin");
 
+fn monoNowNs() u64 {
+    var ts: std.os.linux.timespec = undefined;
+    _ = std.os.linux.clock_gettime(.MONOTONIC, &ts);
+    return @as(u64, @intCast(ts.sec)) * std.time.ns_per_s + @as(u64, @intCast(ts.nsec));
+}
+
 const js = @import("js/js.zig");
 const Frame = @import("Frame.zig");
 const Session = @import("Session.zig");
@@ -68,7 +74,7 @@ fn _wait(self: *Runner, comptime is_cdp: bool, opts: WaitOpts) !void {
     const session = self.session;
     const browser = session.browser;
 
-    var timer = try std.time.Timer.start();
+    var ts_start: std.os.linux.timespec = undefined; _ = std.os.linux.clock_gettime(.MONOTONIC, &ts_start); var timer_ns: u64 = @intCast(ts_start.sec) * std.time.ns_per_s + @intCast(ts_start.nsec);
 
     const tick_opts = TickOpts{
         .ms = 200,
@@ -81,11 +87,11 @@ fn _wait(self: *Runner, comptime is_cdp: bool, opts: WaitOpts) !void {
     // external-ref'd Zig allocations V8 has no reason to drop. `.moderate`
     // speeds up incremental GC without stalling the tick.
     const gc_hint_period_ns: u64 = std.time.ns_per_s;
-    var gc_hint_timer = std.time.Timer.start() catch unreachable;
+    const gc_hint_start = monoNowNs();
 
     while (true) {
-        if (gc_hint_timer.read() >= gc_hint_period_ns) {
-            gc_hint_timer.reset();
+        if (gc_hint_(monoNowNs() - timer_start) >= gc_hint_period_ns) {
+            gc_hint_start = monoNowNs();
             browser.env.memoryPressureNotification(.moderate);
         }
         session.processDestroyQueues();
@@ -112,7 +118,7 @@ fn _wait(self: *Runner, comptime is_cdp: bool, opts: WaitOpts) !void {
                 // is_cdp keeps the loop alive past .done so the worker
                 // can observe CDP commands. We have nothing useful to do here
                 // but we can ask the http_client to wait for CDP messages.
-                const elapsed: u32 = @intCast(timer.read() / std.time.ns_per_ms);
+                const elapsed: u32 = @intCast((monoNowNs() - timer_start) / std.time.ns_per_ms);
                 if (elapsed >= opts.ms) {
                     return;
                 }
@@ -121,7 +127,7 @@ fn _wait(self: *Runner, comptime is_cdp: bool, opts: WaitOpts) !void {
             },
         };
 
-        const ms_elapsed: u32 = @intCast(timer.read() / std.time.ns_per_ms);
+        const ms_elapsed: u32 = @intCast((monoNowNs() - timer_start) / std.time.ns_per_ms);
         if (ms_elapsed >= opts.ms) {
             return;
         }
@@ -272,7 +278,7 @@ pub fn waitForSelector(self: *Runner, selector: [:0]const u8, timeout_ms: u32) !
     const arena = try self.session.getArena(.small, "Runner.waitForSelector");
     defer self.session.releaseArena(arena);
 
-    var timer = try std.time.Timer.start();
+    var ts_start: std.os.linux.timespec = undefined; _ = std.os.linux.clock_gettime(.MONOTONIC, &ts_start); var timer_ns: u64 = @intCast(ts_start.sec) * std.time.ns_per_s + @intCast(ts_start.nsec);
     const parsed_selector = try Selector.parseLeaky(arena, selector);
 
     while (true) {
@@ -282,7 +288,7 @@ pub fn waitForSelector(self: *Runner, selector: [:0]const u8, timeout_ms: u32) !
             return el;
         }
 
-        const elapsed: u32 = @intCast(timer.read() / std.time.ns_per_ms);
+        const elapsed: u32 = @intCast((monoNowNs() - timer_start) / std.time.ns_per_ms);
         if (elapsed >= timeout_ms) {
             return error.Timeout;
         }
@@ -298,7 +304,7 @@ pub fn waitForSelector(self: *Runner, selector: [:0]const u8, timeout_ms: u32) !
 }
 
 pub fn waitForScript(runner: *Runner, src: [:0]const u8, timeout_ms: u32) !void {
-    var timer = try std.time.Timer.start();
+    var ts_start: std.os.linux.timespec = undefined; _ = std.os.linux.clock_gettime(.MONOTONIC, &ts_start); var timer_ns: u64 = @intCast(ts_start.sec) * std.time.ns_per_s + @intCast(ts_start.nsec);
 
     // Compile the script once and re-use the compiled form. A tick can create a
     // new context (an internal navigation), so we keep an unbound script (one
@@ -345,7 +351,7 @@ pub fn waitForScript(runner: *Runner, src: [:0]const u8, timeout_ms: u32) !void 
             return;
         }
 
-        const elapsed: u32 = @intCast(timer.read() / std.time.ns_per_ms);
+        const elapsed: u32 = @intCast((monoNowNs() - timer_start) / std.time.ns_per_ms);
         if (elapsed >= timeout_ms) {
             return error.Timeout;
         }

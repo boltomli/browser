@@ -26,7 +26,7 @@ const Pool = @This();
 
 available: usize,
 mutex: std.atomic.Mutex = .unlocked,
-cond: Thread.Condition,
+cond: std.Io.Condition = std.Io.Condition.init,
 conns: []Sqlite.Conn,
 
 pub fn init(allocator: Allocator, path: [:0]const u8) !Pool {
