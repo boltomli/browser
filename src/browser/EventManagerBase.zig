@@ -147,7 +147,7 @@ pub fn register(self: *EventManagerBase, target: *EventTarget, typ: []const u8, 
         .object => |o| Function{ .object = try o.persist() },
     };
 
-    const listener = try self.listener_pool.create(self.allocator);
+    const listener = try self.listener_pool.create(self.arena);
     listener.* = .{
         .node = .{},
         .once = opts.once,

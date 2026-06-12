@@ -339,7 +339,7 @@ pub fn register(self: *Notification, comptime event: EventType, receiver: anytyp
     const allocator = self.allocator;
     const gop = try self.listeners.getOrPut(allocator, @intFromPtr(receiver));
     if (gop.found_existing == false) {
-        gop.value_ptr.* = .{};
+        gop.value_ptr.* = .empty;
     }
     try gop.value_ptr.append(allocator, listener);
 

@@ -113,7 +113,7 @@ pub const RobotStore = struct {
 
     allocator: std.mem.Allocator,
     map: RobotsMap,
-    mutex: std.Thread.Mutex = .{},
+    mutex: std.atomic.Mutex = .unlocked,
 
     pub fn init(allocator: std.mem.Allocator) RobotStore {
         return .{ .allocator = allocator, .map = .empty };

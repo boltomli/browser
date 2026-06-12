@@ -35,14 +35,14 @@ comptime {
 pub const FsCache = @This();
 
 dir: std.Io.Dir,
-locks: [LOCK_STRIPES]std.Thread.Mutex = .{std.Thread.Mutex{}} ** LOCK_STRIPES,
+locks: [LOCK_STRIPES]std.atomic.Mutex = .{.unlocked} ** LOCK_STRIPES,
 
 const CacheMetadataJson = struct {
     version: usize,
     metadata: CachedMetadata,
 };
 
-fn getLockPtr(self: *FsCache, key: *const [HASHED_KEY_LEN]u8) *std.Thread.Mutex {
+fn getLockPtr(self: *FsCache, key: *const [HASHED_KEY_LEN]u8) *std.atomic.Mutex {
     const lock_idx = std.hash.Wyhash.hash(0, key[0..]) & (LOCK_STRIPES - 1);
     return &self.locks[lock_idx];
 }
