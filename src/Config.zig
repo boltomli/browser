@@ -573,7 +573,7 @@ pub fn printUsageAndExit(self: *const Config, help_for: RunMode, success: bool) 
     }
 
     if (success) {
-        return std.process.cleanExit();
+        return std.process.cleanExit(lp.io);
     }
     std.process.exit(1);
 }

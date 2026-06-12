@@ -61,7 +61,7 @@ fn run(allocator: Allocator, main_arena: Allocator, args_: std.process.Args, io:
         .help => |tag| return args.printUsageAndExit(tag, true),
         .version => {
             std.debug.print("{s}\n", .{lp.build_config.version});
-            return std.process.cleanExit();
+            return std.process.cleanExit(lp.io);
         },
         else => {},
     }

@@ -36,7 +36,7 @@ sigset: std.posix.sigset_t = undefined,
 handle_thread: ?std.Thread = null,
 
 attempt: u32 = 0,
-mutex: std.Thread.Mutex = .{},
+mutex: std.atomic.Mutex = .unlocked,
 listeners: std.ArrayList(Listener) = .empty,
 
 pub const Listener = struct {
@@ -52,7 +52,7 @@ pub fn install(self: *SigHandler) !void {
     std.posix.sigaddset(&self.sigset, std.posix.SIG.TERM);
     std.posix.sigaddset(&self.sigset, std.posix.SIG.QUIT);
     std.posix.sigaddset(&self.sigset, std.posix.SIG.ALRM);
-    std.posix.sigprocmask(std.posix.SIG.BLOCK, &self.sigset, null);
+    std.posix.sigprocmask(@intCast(std.posix.SIG.BLOCK), &self.sigset, null);
 
     self.handle_thread = try std.Thread.spawn(.{ .allocator = self.arena }, SigHandler.sighandle, .{self});
     self.handle_thread.?.detach();
@@ -97,7 +97,7 @@ pub fn on(self: *SigHandler, func: anytype, args: std.meta.ArgsTuple(@TypeOf(fun
     const bytes: []const u8 = @ptrCast((&args)[0..1]);
     @memcpy(buffer, bytes);
 
-    self.mutex.lock();
+    while (!self.mutex.tryLock()) {}
     defer self.mutex.unlock();
 
     try self.listeners.append(self.arena, .{
@@ -126,8 +126,8 @@ fn sighandle(self: *SigHandler) noreturn {
         }
 
         switch (sig) {
-            std.posix.SIG.INT, std.posix.SIG.TERM => {
-                self.mutex.lock();
+            @intFromEnum(std.posix.SIG.INT), @intFromEnum(std.posix.SIG.TERM) => {
+                while (!self.mutex.tryLock()) {}
                 if (self.attempt > 1) {
                     self.mutex.unlock();
                     std.process.exit(1);
@@ -141,11 +141,11 @@ fn sighandle(self: *SigHandler) noreturn {
                 self.mutex.unlock();
                 continue;
             },
-            std.posix.SIG.ALRM => {
+            @intFromEnum(std.posix.SIG.ALRM) => {
                 // Deadline tripped (e.g. --terminate-ms). Run the same listeners,
                 // but don't bump `attempt` — a subsequent ctrl-c should still get
                 // the normal first-attempt graceful path before hard-exiting.
-                self.mutex.lock();
+                while (!self.mutex.tryLock()) {}
                 defer self.mutex.unlock();
                 log.info(.app, "Deadline reached ", .{});
                 for (self.listeners.items) |*item| {

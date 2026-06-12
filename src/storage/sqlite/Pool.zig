@@ -17,6 +17,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 const std = @import("std");
+const lp = @import("lightpanda");
 const Sqlite = @import("Sqlite.zig");
 
 const Thread = std.Thread;
@@ -25,7 +26,7 @@ const Allocator = std.mem.Allocator;
 const Pool = @This();
 
 available: usize,
-mutex: std.atomic.Mutex = .unlocked,
+mutex: std.Io.Mutex = std.Io.Mutex.init,
 cond: std.Io.Condition = std.Io.Condition.init,
 conns: []Sqlite.Conn,
 
@@ -51,8 +52,8 @@ pub fn init(allocator: Allocator, path: [:0]const u8) !Pool {
     }
 
     return .{
-        .cond = .{},
-        .mutex = .{},
+        .cond = std.Io.Condition.init,
+        .mutex = std.Io.Mutex.init,
         .conns = conns,
         .available = count,
     };
@@ -72,13 +73,13 @@ pub fn acquire(self: *Pool) !Sqlite.Conn {
     while (true) {
         const available = self.available;
         if (available == 0) {
-            try self.cond.timedWait(&self.mutex, 5 * std.time.ns_per_s);
+            try self.cond.wait(lp.io, &self.mutex);
             continue;
         }
         const index = available - 1;
         const conn = conns[index];
         self.available = index;
-        self.mutex.unlock();
+        self.mutex.unlock(lp.io);
         return conn;
     }
 }
@@ -90,8 +91,8 @@ pub fn release(self: *Pool, conn: Sqlite.Conn) void {
     const available = self.available;
     conns[available] = conn;
     self.available = available + 1;
-    self.mutex.unlock();
-    self.cond.signal();
+    self.mutex.unlock(lp.io);
+    self.cond.signal(lp.io);
 }
 
 const testing = @import("../../testing.zig");

@@ -176,7 +176,9 @@ pub fn init(allocator: Allocator, app: *App, config: *const Config) !Network {
     globalInit(allocator);
     errdefer globalDeinit();
 
-    const pipe = try posix.pipe2(.{ .NONBLOCK = true, .CLOEXEC = true });
+    var pipe_fds: [2]i32 = undefined;
+    const rc = std.os.linux.pipe2(&pipe_fds, .{ .NONBLOCK = true, .CLOEXEC = true });
+    if (std.os.linux.errno(rc) != .SUCCESS) return error.PipeError;
 
     // IMPORTANT: This is a bit messy, and it exists specifically because
     // self.multi is optional. self.multi is optional so that, when telemetry is
@@ -198,7 +200,7 @@ pub fn init(allocator: Allocator, app: *App, config: *const Config) !Network {
     @memset(cdp_poll_snapshot, null);
 
     @memset(pollfds, .{ .fd = -1, .events = 0, .revents = 0 });
-    pollfds[0] = .{ .fd = pipe[0], .events = posix.POLL.IN, .revents = 0 };
+    pollfds[0] = .{ .fd = pipe_fds[0], .events = posix.POLL.IN, .revents = 0 };
 
     var ca_blob: ?http.Blob = null;
     if (config.tlsVerifyHost()) {
@@ -260,7 +262,7 @@ pub fn init(allocator: Allocator, app: *App, config: *const Config) !Network {
         .ca_blob = ca_blob,
 
         .pollfds = pollfds,
-        .wakeup_pipe = pipe,
+        .wakeup_pipe = pipe_fds,
         .cdp_poll_snapshot = cdp_poll_snapshot,
         .cdp_start = PSEUDO_POLLFDS + config.httpMaxConcurrent(),
 
