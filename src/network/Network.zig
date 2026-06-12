@@ -924,28 +924,26 @@ pub fn newConnection(self: *Network) ?*http.Connection {
 // and footer
 const LineWriter = struct {
     col: usize = 0,
-    inner: std.ArrayList(u8).Writer,
+    inner: *ArrayListWriter,
 
     pub fn writeAll(self: *LineWriter, data: []const u8) !void {
-        var writer = self.inner;
-
         var col = self.col;
         const len = 64 - col;
 
         var remain = data;
         if (remain.len > len) {
             col = 0;
-            try writer.writeAll(data[0..len]);
-            try writer.writeByte('\n');
+            try self.inner.writeAll(data[0..len]);
+            try self.inner.writeByte('\n');
             remain = data[len..];
         }
 
         while (remain.len > 64) {
-            try writer.writeAll(remain[0..64]);
-            try writer.writeByte('\n');
+            try self.inner.writeAll(remain[0..64]);
+            try self.inner.writeByte('\n');
             remain = remain[64..];
         }
-        try writer.writeAll(remain);
+        try self.inner.writeAll(remain);
         self.col = col + remain.len;
     }
 };
@@ -955,8 +953,11 @@ const LineWriter = struct {
 // bundle.rescan does find the .pem file(s) which could be in a few different
 // places, so it's still useful, just not efficient.
 fn loadCerts(allocator: Allocator) !libcurl.CurlBlob {
-    var bundle: std.crypto.Certificate.Bundle = .{};
-    try bundle.rescan(allocator);
+    var bundle: std.crypto.Certificate.Bundle = .empty;
+    var ts: std.os.linux.timespec = undefined;
+    _ = std.os.linux.clock_gettime(.REALTIME, &ts);
+    const now: std.Io.Timestamp = .{ .nanoseconds = @intCast(@as(u128, @intCast(ts.sec)) * std.time.ns_per_s + @as(u128, @intCast(ts.nsec))) };
+    try bundle.rescan(allocator, lp.io, now);
     defer bundle.deinit(allocator);
 
     const bytes = bundle.bytes.items;
@@ -979,16 +980,16 @@ fn loadCerts(allocator: Allocator) !libcurl.CurlBlob {
     ;
     try arr.ensureTotalCapacity(allocator, buffer_size);
     errdefer arr.deinit(allocator);
-    var writer = arr.writer(allocator);
+    var writer_ctx = ArrayListWriter{ .arr = &arr, .allocator = allocator };
 
     var it = bundle.map.valueIterator();
     while (it.next()) |index| {
         const cert = try std.crypto.Certificate.der.Element.parse(bytes, index.*);
 
-        try writer.writeAll("-----BEGIN CERTIFICATE-----\n");
-        var line_writer = LineWriter{ .inner = writer };
+        try writer_ctx.writeAll("-----BEGIN CERTIFICATE-----\n");
+        var line_writer = LineWriter{ .inner = &writer_ctx };
         try encoder.encodeWriter(&line_writer, bytes[index.*..cert.slice.end]);
-        try writer.writeAll("\n-----END CERTIFICATE-----\n");
+        try writer_ctx.writeAll("\n-----END CERTIFICATE-----\n");
     }
 
     // Final encoding should not be larger than our initial size estimate
@@ -1042,3 +1043,14 @@ test "Network: preparePollFds leaves the CDP fd region untouched" {
     try testing.expectEqual(@as(posix.fd_t, 4242), pollfds[nw.cdp_start].fd);
     try testing.expectEqual(@as(posix.fd_t, 4243), pollfds[nw.cdp_start + 1].fd);
 }
+
+const ArrayListWriter = struct {
+    arr: *std.ArrayList(u8),
+    allocator: std.mem.Allocator,
+    pub fn writeAll(self: *@This(), bytes: []const u8) !void {
+        try self.arr.appendSlice(self.allocator, bytes);
+    }
+    pub fn writeByte(self: *@This(), byte: u8) !void {
+        try self.arr.append(self.allocator, byte);
+    }
+};
