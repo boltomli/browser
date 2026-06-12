@@ -126,7 +126,7 @@ callbacks_mutex: std.atomic.Mutex = .unlocked,
 // serialized by cdp_mutex. cdp_unregister signals when a link
 // transitions to .removed so unregisterCdp can return.
 cdp_links: DoublyLinkedList = .{},
-cdp_mutex: std.atomic.Mutex = .unlocked,
+cdp_mutex: std.Io.Mutex = std.Io.Mutex.init,
 cdp_unregister: std.Io.Condition = std.Io.Condition.init,
 // Per-iteration snapshot of CdpLinks whose sockets are in pollfds.
 // Sized at maxConnections at init time so we never allocate inside
@@ -349,28 +349,33 @@ pub fn bind(
         try posix.setsockopt(listener, posix.IPPROTO.TCP, posix.TCP.NODELAY, &std.mem.toBytes(@as(c_int, 1)));
     }
 
-    var sockaddr_buf: [@sizeOf(std.posix.sockaddr.in6)]u8 = undefined;
+    var sockaddr_buf: [@sizeOf(std.posix.sockaddr.storage)]u8 = undefined;
     const sockaddr_len: usize = switch (address.*) {
         .ip4 => |ip4| blk: {
-            const sa = std.posix.sockaddr.in{ .family = .INET, .port = std.mem.nativeToBig(u16, ip4.port), .addr = @bitCast(ip4.bytes) };
-            @memcpy(sockaddr_buf[0..@sizeOf(std.posix.sockaddr.in)], @as(*const [@sizeOf(std.posix.sockaddr.in)]u8, @ptrCast(&sa)));
-            break :blk @sizeOf(std.posix.sockaddr.in);
+            const port_be = std.mem.nativeToBig(u16, ip4.port);
+            @memcpy(sockaddr_buf[0..2], @as(*const [2]u8, @ptrCast(&std.posix.AF.INET)));
+            @memcpy(sockaddr_buf[2..4], @as(*const [2]u8, @ptrCast(&port_be)));
+            @memcpy(sockaddr_buf[4..8], &ip4.bytes);
+            break :blk @sizeOf(std.posix.sockaddr);
         },
         .ip6 => |ip6| blk: {
-            const sa = std.posix.sockaddr.in6{ .family = .INET6, .port = std.mem.nativeToBig(u16, ip6.port), .addr = ip6.bytes, .flowinfo = 0, .scope_id = 0 };
-            @memcpy(sockaddr_buf[0..@sizeOf(std.posix.sockaddr.in6)], @as(*const [@sizeOf(std.posix.sockaddr.in6)]u8, @ptrCast(&sa)));
-            break :blk @sizeOf(std.posix.sockaddr.in6);
+            const port_be = std.mem.nativeToBig(u16, ip6.port);
+            @memcpy(sockaddr_buf[0..2], @as(*const [2]u8, @ptrCast(&std.posix.AF.INET6)));
+            @memcpy(sockaddr_buf[2..4], @as(*const [2]u8, @ptrCast(&port_be)));
+            @memcpy(sockaddr_buf[8..24], &ip6.bytes);
+            break :blk @sizeOf(std.posix.sockaddr);
         },
     };
-    _ = std.os.linux.bind(listener, @ptrCast(&sockaddr_buf), sockaddr_len);
-    try posix.listen(listener, self.config.maxPendingConnections());
+    _ = std.os.linux.bind(listener, @ptrCast(@alignCast(&sockaddr_buf)), @intCast(sockaddr_len));
+    _ = std.os.linux.listen(listener, @intCast(self.config.maxPendingConnections()));
 
     // When the caller requests port 0, the OS assigns an ephemeral port; read
     // the actual bound address back so callers (e.g. logging) see the real port.
     var bound: posix.sockaddr.storage = undefined;
     var bound_len: posix.socklen_t = @sizeOf(posix.sockaddr.storage);
-    try posix.getsockname(listener, @ptrCast(&bound), &bound_len);
-    address.* = net.IpAddress{ .ip4 = .{ .bytes = @ptrCast(@alignCast(&bound[2..6].*)), .port = 0 } };
+    _ = std.os.linux.getsockname(listener, @ptrCast(@alignCast(&bound)), &bound_len);
+    const bound_ptr: *const [14]u8 = @ptrCast(@alignCast(&bound));
+    address.* = net.IpAddress{ .ip4 = .{ .bytes = bound_ptr[2..6].*, .port = 0 } };
 
     self.listener = .{
         .socket = listener,
@@ -420,7 +425,7 @@ pub fn registerCdp(self: *Network, link: *CdpLink) void {
     while (!self.cdp_mutex.tryLock()) {}
     self.cdp_links.append(&link.node);
     self.cdp_dirty = true;
-    self.cdp_mutex.unlock();
+    self.cdp_mutex.unlock(lp.io);
     self.wakeupPoll();
 }
 
@@ -431,7 +436,7 @@ pub fn registerCdp(self: *Network, link: *CdpLink) void {
 // that case.
 pub fn unregisterCdp(self: *Network, link: *CdpLink) void {
     while (!self.cdp_mutex.tryLock()) {}
-    defer self.cdp_mutex.unlock();
+    defer self.cdp_mutex.unlock(lp.io);
     if (link.state == .live) {
         link.state = .unregistering;
         self.cdp_dirty = true;
@@ -440,7 +445,7 @@ pub fn unregisterCdp(self: *Network, link: *CdpLink) void {
 
     while (link.state != .removed) {
         // condition variable, waiting for a signal
-        self.cdp_unregister.wait(&self.cdp_mutex);
+        self.cdp_unregister.wait(lp.io, &self.cdp_mutex) catch {};
     }
 }
 
@@ -476,7 +481,7 @@ fn prepareCdpPollFds(self: *Network) void {
     const cdp_start = self.cdp_start;
 
     while (!self.cdp_mutex.tryLock()) {}
-    defer self.cdp_mutex.unlock();
+    defer self.cdp_mutex.unlock(lp.io);
 
     // Idle fast-path: link set unchanged since last rebuild, so the
     // snapshot + pollfds entries from the previous iteration are still
@@ -516,7 +521,7 @@ fn processCdpEvents(self: *Network) void {
     const cdp_start = self.cdp_start;
 
     while (!self.cdp_mutex.tryLock()) {}
-    defer self.cdp_mutex.unlock();
+    defer self.cdp_mutex.unlock(lp.io);
 
     // First pass: pending unregister requests.
     var it = self.cdp_links.first;
@@ -600,7 +605,7 @@ fn processCdpEvents(self: *Network) void {
     }
 
     if (any_removed) {
-        self.cdp_unregister.broadcast();
+        self.cdp_unregister.broadcast(lp.io);
     }
 }
 
@@ -614,7 +619,7 @@ fn processCdpEvents(self: *Network) void {
 // cdp.tick() returns false and the worker exits.
 fn shutdownCdpLinks(self: *Network) void {
     while (!self.cdp_mutex.tryLock()) {}
-    defer self.cdp_mutex.unlock();
+    defer self.cdp_mutex.unlock(lp.io);
 
     var it = self.cdp_links.first;
     while (it) |node| {
@@ -625,7 +630,7 @@ fn shutdownCdpLinks(self: *Network) void {
         }
     }
 
-    self.cdp_unregister.broadcast();
+    self.cdp_unregister.broadcast(lp.io);
 }
 
 pub fn run(self: *Network) void {
@@ -641,7 +646,7 @@ pub fn run(self: *Network) void {
     // of external code to terminate its requests upon shutdown.
     while (true) {
         if (self.listener != null and !self.accept.load(.acquire)) {
-            std.os.linux.close(self.listener.?.socket);
+            _ = std.os.linux.close(self.listener.?.socket);
             self.listener = null;
             self.pollfds[1] = .{ .fd = -1, .events = 0, .revents = 0 };
         }
@@ -733,16 +738,8 @@ pub fn run(self: *Network) void {
     }
 
     if (self.listener) |listener| {
-        posix.shutdown(listener.socket, .both) catch |err| blk: {
-            if (err == error.SocketNotConnected and builtin.os.tag != .linux) {
-                // This error is normal/expected on BSD/MacOS. We probably
-                // shouldn't bother calling shutdown at all, but I guess this
-                // is safer.
-                break :blk;
-            }
-            lp.log.warn(.app, "listener shutdown", .{ .err = err });
-        };
-        std.os.linux.close(listener.socket);
+        _ = std.os.linux.shutdown(listener.socket, 2); // SHUT_RDWR
+        _ = std.os.linux.close(listener.socket);
     }
 }
 
@@ -798,24 +795,24 @@ fn acceptConnections(self: *Network) void {
     const listener = self.listener orelse return;
 
     while (true) {
-        const socket = posix.accept(listener.socket, null, null, posix.SOCK.NONBLOCK) catch |err| {
+        const rc = std.os.linux.accept4(listener.socket, null, null, posix.SOCK.NONBLOCK);
+        if (std.os.linux.errno(rc) != .SUCCESS) {
+            const err = std.os.linux.errno(rc);
             switch (err) {
-                error.WouldBlock => break,
-                error.SocketNotListening => {
+                .AGAIN => break,
+                .NOTSOCK => {
                     self.pollfds[1] = .{ .fd = -1, .events = 0, .revents = 0 };
                     self.listener = null;
                     return;
                 },
-                error.ConnectionAborted => {
-                    lp.log.warn(.app, "accept connection aborted", .{});
-                    continue;
-                },
                 else => {
-                    lp.log.err(.app, "accept error", .{ .err = err });
+                    lp.log.err(.app, "accept error", .{ .err = @tagName(err) });
                     continue;
                 },
             }
-        };
+        }
+
+        const socket: posix.socket_t = @intCast(rc);
 
         listener.onAccept(listener.ctx, socket);
     }

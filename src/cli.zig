@@ -708,7 +708,7 @@ pub fn Builder(comptime commands: anytype) type {
                                 }
 
                                 // Dupe branch.
-                        const buf = try allocator.alignedAlloc(u8, std.mem.Alignment.fromByteUnitsOptional(pointer.alignment), str.len);
+                                const buf = try allocator.alignedAlloc(u8, std.mem.Alignment.fromByteUnitsOptional(pointer.alignment), str.len);
                                 @memcpy(buf, str);
                                 break :blk buf;
                             };

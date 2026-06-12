@@ -214,7 +214,7 @@ pub fn Reader(comptime EXPECT_MASK: bool, MAX_MESSAGE_SIZE: usize) type {
 
                     // not continuation, and not fin. It has to be the first message
                     // in a fragmented message.
-                    var fragments = Fragments{ .message = .{}, .type = message_type };
+                    var fragments = Fragments{ .message = .empty, .type = message_type };
                     try fragments.message.appendSlice(self.allocator, payload);
                     self.fragments = fragments;
                     continue :LOOP;

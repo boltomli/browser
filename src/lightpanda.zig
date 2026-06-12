@@ -135,7 +135,11 @@ pub fn fetch(app: *App, browser: *Browser, url: [:0]const u8, opts: FetchOpts) !
     }
     var runner = try session.runner(.{});
 
-    var timer = try std.time.Timer.start();
+    const timer_start: u64 = blk: {
+        var ts: std.os.linux.timespec = undefined;
+        _ = std.os.linux.clock_gettime(.MONOTONIC, &ts);
+        break :blk @as(u64, @intCast(ts.sec)) * std.time.ns_per_s + @as(u64, @intCast(ts.nsec));
+    };
 
     if (opts.wait_until) |wu| {
         try runner.wait(.{ .ms = opts.wait_ms, .until = wu });
@@ -147,14 +151,22 @@ pub fn fetch(app: *App, browser: *Browser, url: [:0]const u8, opts: FetchOpts) !
     }
 
     if (opts.wait_selector) |selector| {
-        const elapsed: u32 = @intCast(timer.read() / std.time.ns_per_ms);
+        const elapsed: u32 = @intCast((blk: {
+            var ts: std.os.linux.timespec = undefined;
+            _ = std.os.linux.clock_gettime(.MONOTONIC, &ts);
+            break :blk @as(u64, @intCast(ts.sec)) * std.time.ns_per_s + @as(u64, @intCast(ts.nsec));
+        } - timer_start) / std.time.ns_per_ms);
         const remaining = opts.wait_ms -| elapsed;
         if (remaining == 0) return error.Timeout;
         _ = try runner.waitForSelector(selector, remaining);
     }
 
     if (opts.wait_script) |script| {
-        const elapsed: u32 = @intCast(timer.read() / std.time.ns_per_ms);
+        const elapsed: u32 = @intCast((blk: {
+            var ts: std.os.linux.timespec = undefined;
+            _ = std.os.linux.clock_gettime(.MONOTONIC, &ts);
+            break :blk @as(u64, @intCast(ts.sec)) * std.time.ns_per_s + @as(u64, @intCast(ts.nsec));
+        } - timer_start) / std.time.ns_per_ms);
         const remaining = opts.wait_ms -| elapsed;
         if (remaining == 0) return error.Timeout;
         try runner.waitForScript(script, remaining);

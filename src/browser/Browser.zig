@@ -101,8 +101,8 @@ pub fn deinit(self: *Browser) void {
     self.env.deinit();
     // After env.deinit() the Isolate is gone, so no further weak finalizer can
     // fire — only now is it safe to free the pool backing their parameters.
-    self.fc_identity_pool.deinit();
-    self.page_pool.deinit();
+    self.fc_identity_pool.deinit(self.allocator);
+    self.page_pool.deinit(self.allocator);
     self.http_client.deinit();
 }
 

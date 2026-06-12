@@ -52,7 +52,7 @@ pub fn init(app: *App, address: std.Io.net.IpAddress) !*Server {
         .cdp_pool = .empty,
         .max_connections = app.config.maxConnections(),
     };
-    errdefer self.cdp_pool.deinit();
+    errdefer self.cdp_pool.deinit(app.allocator);
 
     // Bind first so /json/version can advertise the OS-assigned port (--port 0).
     var bound_address = address;
@@ -84,11 +84,12 @@ pub fn deinit(self: *Server) void {
     self.shutdown();
 
     while (self.active_threads.load(.monotonic) > 0) {
-        std.Thread.sleep(10 * std.time.ns_per_ms);
+        var ts: std.os.linux.timespec = .{ .sec = 0, .nsec = 10 * std.time.ns_per_ms };
+        _ = std.os.linux.nanosleep(&ts, null);
     }
 
     self.cdps.deinit(self.app.allocator);
-    self.cdp_pool.deinit();
+    self.cdp_pool.deinit(self.app.allocator);
     self.app.allocator.free(self.json_version_response);
     self.app.allocator.destroy(self);
 }

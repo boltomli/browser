@@ -497,7 +497,7 @@ pub fn getAddress(self: *Connection) !std.Io.net.IpAddress {
 }
 
 pub fn shutdown(self: *Connection) void {
-    posix.shutdown(self.socket, .recv) catch {};
+    _ = std.os.linux.shutdown(self.socket, std.os.linux.SHUT.RD);
 }
 
 fn fillWebsocketHeader(buf: std.ArrayList(u8)) []const u8 {

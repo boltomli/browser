@@ -15,7 +15,17 @@ pub fn isDisabled() bool {
         return true;
     }
 
-    return std.process.hasEnvVarConstant("LIGHTPANDA_DISABLE_TELEMETRY");
+    // Search for LIGHTPANDA_DISABLE_TELEMETRY in environment
+    {
+        var i: usize = 0;
+        while (std.c.environ[i] != null) : (i += 1) {
+            const env = std.mem.sliceTo(std.c.environ[i].?, '=');
+            if (std.mem.eql(u8, env, "LIGHTPANDA_DISABLE_TELEMETRY")) {
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 pub const Telemetry = TelemetryT(@import("lightpanda.zig"));

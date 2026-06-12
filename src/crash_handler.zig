@@ -6,6 +6,17 @@ const IS_DEBUG = builtin.mode == .Debug;
 
 const abort = std.process.abort;
 
+fn findEnv(key: []const u8) ?[:0]const u8 {
+    var i: usize = 0;
+    while (std.c.environ[i] != null) : (i += 1) {
+        const env = std.mem.sliceTo(std.c.environ[i].?, '=');
+        if (std.mem.eql(u8, env, key)) {
+            return std.mem.sliceTo(std.c.environ[i].? + env.len + 1, 0);
+        }
+    }
+    return null;
+}
+
 // tracks how deep within a panic we're panicling
 var panic_level: usize = 0;
 
@@ -99,7 +110,10 @@ fn report(reason: []const u8, begin_addr: usize, args: anytype) !void {
             writer.writeByte('\n') catch {};
         }
 
-        std.debug.dumpCurrentStackTraceToWriter(begin_addr, &writer) catch {};
+        var addr_buf: [128]usize = undefined;
+        const stack_trace = std.debug.captureCurrentStackTrace(.{ .first_address = begin_addr }, &addr_buf);
+        var fmt: std.debug.FormatStackTrace = .{ .stack_trace = stack_trace };
+        fmt.format(&writer) catch {};
         const written = writer.buffered();
         if (written.len == 0) {
             break :blk "???";
@@ -134,17 +148,17 @@ fn report(reason: []const u8, begin_addr: usize, args: anytype) !void {
 }
 
 fn curlPath(buf: []u8) ?usize {
-    const path = std.posix.getenv("PATH") orelse return null;
+    const path = findEnv("PATH") orelse return null;
     var it = std.mem.tokenizeScalar(u8, path, std.fs.path.delimiter);
 
     var fba = std.heap.FixedBufferAllocator.init(buf);
     const allocator = fba.allocator();
 
-    const cwd = std.fs.cwd();
+    const cwd = std.Io.Dir.cwd();
     while (it.next()) |p| {
         defer fba.reset();
         const full_path = std.fs.path.joinZ(allocator, &.{ p, "curl" }) catch continue;
-        cwd.accessZ(full_path, .{}) catch continue;
+        cwd.access(lp.io, full_path, .{}) catch continue;
         return full_path.len;
     }
     return null;

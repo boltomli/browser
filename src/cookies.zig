@@ -103,10 +103,10 @@ fn _saveToFile(jar: *Cookie.Jar, path: []const u8) !void {
     jar.removeExpired(null);
 
     var file = try std.Io.Dir.cwd().createFile(lp.io, path, .{});
-    defer file.close();
+    defer file.close(lp.io);
 
     var buf: [8192]u8 = undefined;
-    var writer = file.writer(&buf);
+    var writer = file.writer(lp.io, &buf);
     const w = &writer.interface;
 
     try w.writeByte('[');

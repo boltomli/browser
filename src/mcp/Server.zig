@@ -18,11 +18,11 @@ browser: lp.Browser,
 session: *lp.Session,
 node_registry: CDPNode.Registry,
 
-writer: *std.io.Writer,
-mutex: std.Thread.Mutex = .{},
-aw: std.io.Writer.Allocating,
+writer: *std.Io.Writer,
+mutex: std.atomic.Mutex = .unlocked,
+aw: std.Io.Writer.Allocating,
 
-pub fn init(allocator: std.mem.Allocator, app: *App, writer: *std.io.Writer) !*Self {
+pub fn init(allocator: std.mem.Allocator, app: *App, writer: *std.Io.Writer) !*Self {
     const notification = try lp.Notification.init(allocator);
     errdefer notification.deinit();
 
@@ -66,7 +66,7 @@ pub fn deinit(self: *Self) void {
 }
 
 pub fn sendResponse(self: *Self, response: anytype) !void {
-    self.mutex.lock();
+    while (!self.mutex.tryLock()) {}
     defer self.mutex.unlock();
 
     self.aw.clearRetainingCapacity();
@@ -107,8 +107,8 @@ test "MCP.Server - Integration: synchronous smoke test" {
         \\{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test-client","version":"1.0.0"}}}
     ;
 
-    var in_reader: std.io.Reader = .fixed(input);
-    var out_alloc: std.io.Writer.Allocating = .init(testing.arena_allocator);
+    var in_reader: std.Io.Reader = .fixed(input);
+    var out_alloc: std.Io.Writer.Allocating = .init(testing.arena_allocator);
     defer out_alloc.deinit();
 
     var server = try Self.init(allocator, app, &out_alloc.writer);
@@ -128,8 +128,8 @@ test "MCP.Server - Integration: ping request returns an empty result" {
         \\{"jsonrpc":"2.0","id":"ping-1","method":"ping"}
     ;
 
-    var in_reader: std.io.Reader = .fixed(input);
-    var out_alloc: std.io.Writer.Allocating = .init(testing.arena_allocator);
+    var in_reader: std.Io.Reader = .fixed(input);
+    var out_alloc: std.Io.Writer.Allocating = .init(testing.arena_allocator);
     defer out_alloc.deinit();
 
     var server = try Self.init(allocator, app, &out_alloc.writer);

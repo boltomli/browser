@@ -793,7 +793,7 @@ fn getArgs(comptime F: type, comptime offset: usize, local: *const Local, info: 
         // to bind it to a JS argument.
         const LastParamType = params[params.len - 1].type.?;
         if (comptime isFrame(LastParamType) or isPage(LastParamType) or isExecution(LastParamType) or isSession(LastParamType)) {
-                @field(args, tupleFieldName(params.len - 1 + offset)) = getGlobalArg(LastParamType, local.ctx);
+            @field(args, tupleFieldName(params.len - 1 + offset)) = getGlobalArg(LastParamType, local.ctx);
             break :blk params[0 .. params.len - 1];
         }
 

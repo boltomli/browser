@@ -38,7 +38,7 @@ pub fn main(init: std.process.Init) !void {
     const gpa = if (builtin.mode == .Debug) gpa_instance.allocator() else std.heap.c_allocator;
 
     defer if (builtin.mode == .Debug) {
-        if (gpa_instance.detectLeaks()) std.posix.exit(1);
+        if (gpa_instance.detectLeaks()) std.process.exit(1);
     };
 
     // arena for main-specific allocations
@@ -48,7 +48,7 @@ pub fn main(init: std.process.Init) !void {
 
     run(gpa, main_arena, init.minimal.args, init.io) catch |err| {
         log.fatal(.app, "exit", .{ .err = err });
-        std.posix.exit(1);
+        std.process.exit(1);
     };
 }
 
@@ -135,8 +135,9 @@ fn run(allocator: Allocator, main_arena: Allocator, args_: std.process.Args, io:
                 .json = opts.json,
             };
 
-            var stdout = std.fs.File.stdout();
-            var writer = stdout.writer(&.{});
+            var stdout = std.Io.File.stdout();
+            var buf: [4096]u8 = undefined;
+            var writer = stdout.writer(lp.io, &buf);
             if (opts.dump != null or opts.json) {
                 fetch_opts.writer = &writer.interface;
             }
@@ -146,7 +147,7 @@ fn run(allocator: Allocator, main_arena: Allocator, args_: std.process.Args, io:
             // we can't treat Browser like the above serve path treats Server.
             // We need Browser to be createdin fetchThread and to get a reference
             // to it here.
-            var ft: FetchTerminator = .{};
+            var ft: FetchTerminator = .{ .mutex = .unlocked, .browser = null };
             try sighandler.on(FetchTerminator.terminate, .{&ft});
             if (opts.terminate_ms) |ms| {
                 try sighandler.deadline(ms);
@@ -164,7 +165,7 @@ fn run(allocator: Allocator, main_arena: Allocator, args_: std.process.Args, io:
 
             var cdp_server: ?*lp.Server = null;
             if (opts.cdp_port) |port| {
-                const address = std.net.Address.parseIp("127.0.0.1", port) catch |err| {
+                const address = std.Io.net.IpAddress.parseIp4("127.0.0.1", port) catch |err| {
                     log.fatal(.mcp, "invalid cdp address", .{ .err = err, .port = port });
                     return;
                 };
@@ -183,17 +184,17 @@ fn run(allocator: Allocator, main_arena: Allocator, args_: std.process.Args, io:
 }
 
 const FetchTerminator = struct {
-    mutex: std.Thread.Mutex = .{},
+    mutex: std.atomic.Mutex = .unlocked,
     browser: ?*lp.Browser = null,
 
     fn storeBrowser(self: *FetchTerminator, browser: *lp.Browser) void {
-        self.mutex.lock();
+        while (!self.mutex.tryLock()) {}
         defer self.mutex.unlock();
         self.browser = browser;
     }
 
     fn releaseBrowser(self: *FetchTerminator) void {
-        self.mutex.lock();
+        while (!self.mutex.tryLock()) {}
         defer self.mutex.unlock();
         const b = self.browser orelse return;
         b.env.cancelTerminate();
@@ -201,7 +202,7 @@ const FetchTerminator = struct {
     }
 
     fn terminate(self: *FetchTerminator) void {
-        self.mutex.lock();
+        while (!self.mutex.tryLock()) {}
         defer self.mutex.unlock();
         const b = self.browser orelse return;
         b.env.terminate();
@@ -233,7 +234,8 @@ fn fetchThread(app: *App, ft: *FetchTerminator, url: [:0]const u8, fetch_opts: l
 fn mcpThread(allocator: std.mem.Allocator, app: *App) void {
     defer app.network.stop();
 
-    var stdout = std.fs.File.stdout().writer(&.{});
+    var stdout_buf: [4096]u8 = undefined;
+    var stdout = std.Io.File.stdout().writer(lp.io, &stdout_buf);
     var mcp_server: *lp.mcp.Server = lp.mcp.Server.init(allocator, app, &stdout.interface) catch |err| {
         log.fatal(.mcp, "mcp init error", .{ .err = err });
         return;
@@ -241,7 +243,7 @@ fn mcpThread(allocator: std.mem.Allocator, app: *App) void {
     defer mcp_server.deinit();
 
     var stdin_buf: [64 * 1024]u8 = undefined;
-    var stdin = std.fs.File.stdin().reader(&stdin_buf);
+    var stdin = std.Io.File.stdin().reader(lp.io, &stdin_buf);
     lp.mcp.router.processRequests(mcp_server, &stdin.interface) catch |err| {
         log.fatal(.mcp, "mcp error", .{ .err = err });
     };

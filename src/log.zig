@@ -119,7 +119,7 @@ pub fn log(scope: Scope, level: Level, msg: []const u8, data: anytype) void {
     _ = data;
     std.debug.print(
         \\$time={d} $level={s} $scope={s} $msg="{s}"
-    \\
+        \\
     , .{ timestamp(.clock), @tagName(level), @tagName(scope), msg });
 }
 
