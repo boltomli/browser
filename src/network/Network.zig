@@ -275,7 +275,7 @@ pub fn init(allocator: Allocator, app: *App, config: *const Config) !Network {
         .robot_store = RobotStore.init(allocator),
         .web_bot_auth = web_bot_auth,
 
-        .ws_pool = .init(allocator),
+        .ws_pool = .empty,
         .ws_max = config.wsMaxConcurrent(),
 
         .ip_filter = ip_filter,
@@ -980,16 +980,23 @@ fn loadCerts(allocator: Allocator) !libcurl.CurlBlob {
     ;
     try arr.ensureTotalCapacity(allocator, buffer_size);
     errdefer arr.deinit(allocator);
-    var writer_ctx = ArrayListWriter{ .arr = &arr, .allocator = allocator };
 
+    var tmp_buf: [256]u8 = undefined;
     var it = bundle.map.valueIterator();
     while (it.next()) |index| {
         const cert = try std.crypto.Certificate.der.Element.parse(bytes, index.*);
 
-        try writer_ctx.writeAll("-----BEGIN CERTIFICATE-----\n");
-        var line_writer = LineWriter{ .inner = &writer_ctx };
-        try encoder.encodeWriter(&line_writer, bytes[index.*..cert.slice.end]);
-        try writer_ctx.writeAll("\n-----END CERTIFICATE-----\n");
+        try arr.appendSlice(allocator, "-----BEGIN CERTIFICATE-----\n");
+        const raw = bytes[index.*..cert.slice.end];
+        var pos: usize = 0;
+        while (pos < raw.len) {
+            const chunk = @min(raw.len - pos, 48); // 48*4/3 = 64 base64 chars
+            const encoded = encoder.encode(&tmp_buf, raw[pos .. pos + chunk]);
+            try arr.appendSlice(allocator, encoded);
+            try arr.append(allocator, '\n');
+            pos += chunk;
+        }
+        try arr.appendSlice(allocator, "-----END CERTIFICATE-----\n");
     }
 
     // Final encoding should not be larger than our initial size estimate

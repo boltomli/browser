@@ -73,14 +73,14 @@ fn cacheTmpPath(hashed_key: *const [HASHED_KEY_LEN]u8) [HASHED_TMP_PATH_LEN]u8 {
 }
 
 pub fn init(path: []const u8) !FsCache {
-    const cwd = std.fs.cwd();
+    const cwd = std.Io.Dir.cwd();
 
-    cwd.makeDir(path) catch |err| switch (err) {
+    cwd.createDir(lp.io, path, .default_dir) catch |err| switch (err) {
         error.PathAlreadyExists => {},
         else => return err,
     };
 
-    const dir = try cwd.openDir(path, .{ .iterate = true });
+    const dir = try cwd.openDir(lp.io, path, .{ .iterate = true });
     return .{ .dir = dir };
 }
 
