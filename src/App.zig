@@ -105,12 +105,12 @@ fn getAndMakeAppDir(allocator: Allocator) ?[]const u8 {
     if (@import("builtin").is_test) {
         return allocator.dupe(u8, "/tmp") catch unreachable;
     }
-    const app_dir_path = std.fs.getAppDataDir(allocator, "lightpanda") catch |err| {
+    const app_dir_path = getAppDataDir(allocator) catch |err| {
         log.warn(.app, "get data dir", .{ .err = err });
         return null;
     };
 
-    std.fs.cwd().makePath(app_dir_path) catch |err| switch (err) {
+    std.Io.Dir.cwd().createDirPath(lp.io, app_dir_path) catch |err| switch (err) {
         error.PathAlreadyExists => return app_dir_path,
         else => {
             allocator.free(app_dir_path);
@@ -119,4 +119,9 @@ fn getAndMakeAppDir(allocator: Allocator) ?[]const u8 {
         },
     };
     return app_dir_path;
+}
+
+fn getAppDataDir(allocator: Allocator) ![]const u8 {
+    const home = std.posix.getenv("XDG_DATA_HOME") orelse std.posix.getenv("HOME") orelse return error.NoHomeDir;
+    return std.fmt.allocPrint(allocator, "{s}/.lightpanda", .{home});
 }

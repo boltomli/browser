@@ -289,7 +289,7 @@ pub fn deinit(self: *Network) void {
 
     for (&self.wakeup_pipe) |*fd| {
         if (fd.* >= 0) {
-            posix.close(fd.*);
+            std.os.linux.close(fd.*);
             fd.* = -1;
         }
     }
@@ -336,7 +336,7 @@ pub fn bind(
 
     const flags = posix.SOCK.STREAM | posix.SOCK.CLOEXEC | posix.SOCK.NONBLOCK;
     const listener = try posix.socket(address.any.family, flags, posix.IPPROTO.TCP);
-    errdefer posix.close(listener);
+    errdefer std.os.linux.close(listener);
 
     try posix.setsockopt(listener, posix.SOL.SOCKET, posix.SO.REUSEADDR, &std.mem.toBytes(@as(c_int, 1)));
     if (@hasDecl(posix.TCP, "NODELAY")) {
@@ -622,7 +622,7 @@ pub fn run(self: *Network) void {
     // of external code to terminate its requests upon shutdown.
     while (true) {
         if (self.listener != null and !self.accept.load(.acquire)) {
-            posix.close(self.listener.?.socket);
+            std.os.linux.close(self.listener.?.socket);
             self.listener = null;
             self.pollfds[1] = .{ .fd = -1, .events = 0, .revents = 0 };
         }
@@ -723,7 +723,7 @@ pub fn run(self: *Network) void {
             }
             lp.log.warn(.app, "listener shutdown", .{ .err = err });
         };
-        posix.close(listener.socket);
+        std.os.linux.close(listener.socket);
     }
 }
 
@@ -735,7 +735,7 @@ pub fn submitRequest(self: *Network, conn: *http.Connection) void {
 }
 
 fn wakeupPoll(self: *Network) void {
-    _ = posix.write(self.wakeup_pipe[1], &.{1}) catch {};
+    _ = std.os.linux.write(self.wakeup_pipe[1], &.{1}, 1);
 }
 
 fn drainQueue(self: *Network) void {

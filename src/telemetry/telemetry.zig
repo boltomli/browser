@@ -71,7 +71,7 @@ fn getOrCreateId(app_dir_path_: ?[]const u8) ?[36]u8 {
     };
 
     var buf: [37]u8 = undefined;
-    var dir = std.fs.openDirAbsolute(app_dir_path, .{}) catch |err| {
+    var dir = std.Io.Dir.openDirAbsolute(app_dir_path, .{}) catch |err| {
         log.warn(.telemetry, "data directory open error", .{ .path = app_dir_path, .err = err });
         return null;
     };

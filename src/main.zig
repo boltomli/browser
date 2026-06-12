@@ -92,7 +92,7 @@ fn run(allocator: Allocator, main_arena: Allocator, args_: std.process.Args, io:
     switch (args.mode) {
         .serve => |opts| {
             log.debug(.app, "startup", .{ .mode = "serve", .snapshot = app.snapshot.fromEmbedded() });
-            const address = std.net.Address.parseIp(opts.host, opts.port) catch |err| {
+            const address = std.Io.net.IpAddress.parseIp4(opts.host, opts.port) catch |err| {
                 log.fatal(.app, "invalid server address", .{ .err = err, .host = opts.host, .port = opts.port });
                 return args.printUsageAndExit(.serve, false);
             };

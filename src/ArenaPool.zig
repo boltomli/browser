@@ -72,7 +72,7 @@ _leak_track: if (IS_DEBUG) std.StringHashMapUnmanaged(isize) else void = if (IS_
 pub fn init(allocator: Allocator, config: Config) ArenaPool {
     return .{
         .allocator = allocator,
-        .entry_pool = .init(allocator),
+        .entry_pool = .empty,
         .tiny = .{ .free_list_max = config.tiny.max, .retain_bytes = config.tiny.retain },
         .small = .{ .free_list_max = config.small.max, .retain_bytes = config.small.retain },
         .medium = .{ .free_list_max = config.medium.max, .retain_bytes = config.medium.retain },
@@ -104,7 +104,7 @@ pub fn deinit(self: *ArenaPool) void {
             e.arena.deinit();
         }
     }
-    self.entry_pool.deinit();
+    self.entry_pool.deinit(self.allocator);
 }
 
 // Acquire an arena from the pool.
