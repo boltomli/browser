@@ -93,7 +93,7 @@ pub fn get(self: *FsCache, arena: std.mem.Allocator, req: CacheRequest) ?CachedR
     const cache_p = cachePath(&hashed_key);
 
     const lock = self.getLockPtr(&hashed_key);
-    lock.lock();
+    while (!lock.tryLock()) {};
     defer lock.unlock();
 
     const file = self.dir.openFile(&cache_p, .{ .mode = .read_only }) catch |e| {
@@ -219,7 +219,7 @@ pub fn put(self: *FsCache, meta: CachedMetadata, body: []const u8) !void {
     const cache_tmp_p = cacheTmpPath(&hashed_key);
 
     const lock = self.getLockPtr(&hashed_key);
-    lock.lock();
+    while (!lock.tryLock()) {};
     defer lock.unlock();
 
     const file = self.dir.createFile(&cache_tmp_p, .{ .truncate = true }) catch |e| {
@@ -265,7 +265,7 @@ pub fn put(self: *FsCache, meta: CachedMetadata, body: []const u8) !void {
 }
 
 pub fn clear(self: *FsCache) !void {
-    for (&self.locks) |*lock| lock.lock();
+    for (&self.locks) |*lock| while (!lock.tryLock()) {};
     defer for (&self.locks) |*lock| lock.unlock();
 
     var iter = self.dir.iterate();
@@ -285,7 +285,7 @@ pub fn evict(self: *FsCache, url: []const u8) void {
     const cache_p = cachePath(&hashed_key);
 
     const lock = self.getLockPtr(&hashed_key);
-    lock.lock();
+    while (!lock.tryLock()) {};
     defer lock.unlock();
 
     self.dir.deleteFile(&cache_p) catch |e| switch (e) {
