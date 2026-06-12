@@ -98,7 +98,7 @@ pub fn get(self: *FsCache, arena: std.mem.Allocator, req: CacheRequest) ?CachedR
 
     const file = self.dir.openFile(lp.io, &cache_p, .{ .mode = .read_only }) catch |e| {
         switch (e) {
-            std.fs.File.OpenError.FileNotFound => {
+            std.Io.File.OpenError.FileNotFound => {
                 log.debug(.cache, "miss", .{ .url = req.url, .hash = &hashed_key, .reason = "missing" });
             },
             else => |err| {
@@ -110,7 +110,7 @@ pub fn get(self: *FsCache, arena: std.mem.Allocator, req: CacheRequest) ?CachedR
 
     var cleanup = false;
     defer if (cleanup) {
-        file.close();
+        file.close(lp.io);
         self.dir.deleteFile(lp.io, &cache_p) catch |e| {
             log.err(.cache, "clean fail", .{ .url = req.url, .file = &cache_p, .err = e });
         };
@@ -119,7 +119,7 @@ pub fn get(self: *FsCache, arena: std.mem.Allocator, req: CacheRequest) ?CachedR
     var file_buf: [1024]u8 = undefined;
     var len_buf: [BODY_LEN_HEADER_LEN]u8 = undefined;
 
-    var file_reader = file.reader(&file_buf);
+    var file_reader = file.reader(lp.io, &file_buf);
     const file_reader_iface = &file_reader.interface;
 
     file_reader_iface.readSliceAll(&len_buf) catch |e| {
@@ -227,10 +227,10 @@ pub fn put(self: *FsCache, meta: CachedMetadata, body: []const u8) !void {
         return e;
     };
     errdefer self.dir.deleteFile(lp.io, &cache_tmp_p) catch {};
-    defer file.close();
+    defer file.close(lp.io);
 
     var writer_buf: [1024]u8 = undefined;
-    var file_writer = file.writer(&writer_buf);
+    var file_writer = file.writer(lp.io, &writer_buf);
     var file_writer_iface = &file_writer.interface;
 
     var len_buf: [8]u8 = undefined;
@@ -256,7 +256,7 @@ pub fn put(self: *FsCache, meta: CachedMetadata, body: []const u8) !void {
         log.err(.cache, "flush", .{ .url = meta.url, .err = e });
         return e;
     };
-    self.dir.rename(lp.io, &cache_tmp_p, &cache_p) catch |e| {
+    self.dir.rename(&cache_tmp_p, self.dir, &cache_p) catch |e| {
         log.err(.cache, "rename", .{ .url = meta.url, .from = &cache_tmp_p, .to = &cache_p, .err = e });
         return e;
     };
@@ -348,10 +348,10 @@ test "FsCache: basic put and get" {
     ) orelse return error.CacheMiss;
     const f = result.data.file;
     const file = f.file;
-    defer file.close();
+    defer file.close(lp.io);
 
     var buf: [64]u8 = undefined;
-    var file_reader = file.reader(&buf);
+    var file_reader = file.reader(lp.io, &buf);
     try file_reader.seekTo(f.offset);
 
     const read_buf = try file_reader.interface.readAlloc(testing.allocator, f.len);
@@ -396,7 +396,7 @@ test "FsCache: get expiration" {
             .request_headers = &.{},
         },
     ) orelse return error.CacheMiss;
-    result.data.file.file.close();
+    result.data.file.file.close(lp.io);
 
     try testing.expectEqual(null, cache.get(
         arena.allocator(),
@@ -457,10 +457,10 @@ test "FsCache: put override" {
         ) orelse return error.CacheMiss;
         const f = result.data.file;
         const file = f.file;
-        defer file.close();
+        defer file.close(lp.io);
 
         var buf: [64]u8 = undefined;
-        var file_reader = file.reader(&buf);
+        var file_reader = file.reader(lp.io, &buf);
         try file_reader.seekTo(f.offset);
 
         const read_buf = try file_reader.interface.readAlloc(testing.allocator, f.len);
@@ -497,10 +497,10 @@ test "FsCache: put override" {
         ) orelse return error.CacheMiss;
         const f = result.data.file;
         const file = f.file;
-        defer file.close();
+        defer file.close(lp.io);
 
         var buf: [64]u8 = undefined;
-        var file_reader = file.reader(&buf);
+        var file_reader = file.reader(lp.io, &buf);
         try file_reader.seekTo(f.offset);
 
         const read_buf = try file_reader.interface.readAlloc(testing.allocator, f.len);
@@ -525,7 +525,7 @@ test "FsCache: garbage file" {
     const cache_p = cachePath(&hashed_key);
     const file = try setup.cache.kind.fs.dir.createFile(&cache_p, .{});
     try file.writeAll("this is not a valid cache file !@#$%");
-    file.close();
+    file.close(lp.io);
 
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
@@ -575,7 +575,7 @@ test "FsCache: vary hit and miss" {
             .{ .name = "Accept-Encoding", .value = "gzip" },
         },
     }) orelse return error.CacheMiss;
-    result.data.file.file.close();
+    result.data.file.file.close(lp.io);
 
     try testing.expectEqual(null, cache.get(arena.allocator(), .{
         .url = "https://example.com",
@@ -598,7 +598,7 @@ test "FsCache: vary hit and miss" {
             .{ .name = "Accept-Encoding", .value = "gzip" },
         },
     }) orelse return error.CacheMiss;
-    result2.data.file.file.close();
+    result2.data.file.file.close(lp.io);
 }
 
 test "FsCache: vary multiple headers" {
@@ -638,7 +638,7 @@ test "FsCache: vary multiple headers" {
             .{ .name = "Accept-Language", .value = "en" },
         },
     }) orelse return error.CacheMiss;
-    result.data.file.file.close();
+    result.data.file.file.close(lp.io);
 
     try testing.expectEqual(null, cache.get(arena.allocator(), .{
         .url = "https://example.com",
@@ -698,7 +698,7 @@ test "FsCache: clear removes all entries" {
         },
     );
     try testing.expect(r1 != null);
-    r1.?.data.file.file.close();
+    r1.?.data.file.file.close(lp.io);
 
     const r2 = cache.get(
         arena.allocator(),
@@ -709,7 +709,7 @@ test "FsCache: clear removes all entries" {
         },
     );
     try testing.expect(r2 != null);
-    r2.?.data.file.file.close();
+    r2.?.data.file.file.close(lp.io);
 
     try cache.clear();
 
@@ -782,10 +782,10 @@ test "FsCache: put after clear works" {
         },
     ) orelse return error.CacheMiss;
     const f = result.data.file;
-    defer f.file.close();
+    defer f.file.close(lp.io);
 
     var buf: [64]u8 = undefined;
-    var file_reader = f.file.reader(&buf);
+    var file_reader = f.file.reader(lp.io, lp.io, &buf);
     try file_reader.seekTo(f.offset);
     const read_buf = try file_reader.interface.readAlloc(testing.allocator, f.len);
     defer testing.allocator.free(read_buf);
@@ -826,7 +826,7 @@ test "FsCache: evict removes entry" {
             .request_headers = &.{},
         },
     ) orelse return error.CacheMiss;
-    result.data.file.file.close();
+    result.data.file.file.close(lp.io);
 
     cache.evict("https://example.com");
 

@@ -36,7 +36,7 @@ const Cache = @import("cache/Cache.zig");
 const FsCache = @import("cache/FsCache.zig");
 
 const log = lp.log;
-const net = std.net;
+const net = std.Io.net;
 const posix = std.posix;
 const Allocator = std.mem.Allocator;
 const DoublyLinkedList = std.DoublyLinkedList;
@@ -307,7 +307,7 @@ pub fn deinit(self: *Network) void {
     }
     self.allocator.free(self.connections);
 
-    self.ws_pool.deinit();
+    self.ws_pool.deinit(self.allocator);
 
     self.robot_store.deinit();
     if (self.web_bot_auth) |wba| {
@@ -326,7 +326,7 @@ pub fn deinit(self: *Network) void {
 
 pub fn bind(
     self: *Network,
-    address: *net.Address,
+    address: *net.IpAddress,
     ctx: *anyopaque,
     on_accept: *const fn (ctx: *anyopaque, socket: posix.socket_t) void,
 ) !void {
@@ -334,16 +334,35 @@ pub fn bind(
 
     self.accept.store(true, .release);
 
-    const flags = posix.SOCK.STREAM | posix.SOCK.CLOEXEC | posix.SOCK.NONBLOCK;
-    const listener = try posix.socket(address.any.family, flags, posix.IPPROTO.TCP);
-    errdefer std.os.linux.close(listener);
+    const flags: u32 = posix.SOCK.STREAM | posix.SOCK.CLOEXEC | posix.SOCK.NONBLOCK;
+    const family: u32 = switch (address.*) {
+        .ip4 => posix.AF.INET,
+        .ip6 => posix.AF.INET6,
+    };
+    const rc = std.os.linux.socket(family, flags, posix.IPPROTO.TCP);
+    if (std.os.linux.errno(rc) != .SUCCESS) return error.SocketError;
+    const listener: posix.socket_t = @intCast(rc);
+    errdefer _ = std.os.linux.close(listener);
 
     try posix.setsockopt(listener, posix.SOL.SOCKET, posix.SO.REUSEADDR, &std.mem.toBytes(@as(c_int, 1)));
     if (@hasDecl(posix.TCP, "NODELAY")) {
         try posix.setsockopt(listener, posix.IPPROTO.TCP, posix.TCP.NODELAY, &std.mem.toBytes(@as(c_int, 1)));
     }
 
-    try posix.bind(listener, &address.any, address.getOsSockLen());
+    var sockaddr_buf: [@sizeOf(std.posix.sockaddr.in6)]u8 = undefined;
+    const sockaddr_len: usize = switch (address.*) {
+        .ip4 => |ip4| blk: {
+            const sa = std.posix.sockaddr.in{ .family = .INET, .port = std.mem.nativeToBig(u16, ip4.port), .addr = @bitCast(ip4.bytes) };
+            @memcpy(sockaddr_buf[0..@sizeOf(std.posix.sockaddr.in)], @as(*const [@sizeOf(std.posix.sockaddr.in)]u8, @ptrCast(&sa)));
+            break :blk @sizeOf(std.posix.sockaddr.in);
+        },
+        .ip6 => |ip6| blk: {
+            const sa = std.posix.sockaddr.in6{ .family = .INET6, .port = std.mem.nativeToBig(u16, ip6.port), .addr = ip6.bytes, .flowinfo = 0, .scope_id = 0 };
+            @memcpy(sockaddr_buf[0..@sizeOf(std.posix.sockaddr.in6)], @as(*const [@sizeOf(std.posix.sockaddr.in6)]u8, @ptrCast(&sa)));
+            break :blk @sizeOf(std.posix.sockaddr.in6);
+        },
+    };
+    _ = std.os.linux.bind(listener, @ptrCast(&sockaddr_buf), sockaddr_len);
     try posix.listen(listener, self.config.maxPendingConnections());
 
     // When the caller requests port 0, the OS assigns an ephemeral port; read
@@ -351,7 +370,7 @@ pub fn bind(
     var bound: posix.sockaddr.storage = undefined;
     var bound_len: posix.socklen_t = @sizeOf(posix.sockaddr.storage);
     try posix.getsockname(listener, @ptrCast(&bound), &bound_len);
-    address.* = net.Address.initPosix(@ptrCast(@alignCast(&bound)));
+    address.* = net.IpAddress{ .ip4 = .{ .bytes = @ptrCast(@alignCast(&bound[2..6].*)), .port = 0 } };
 
     self.listener = .{
         .socket = listener,

@@ -26,7 +26,7 @@ const Config = @import("Config.zig");
 const CDP = @import("cdp/CDP.zig");
 
 const log = lp.log;
-const net = std.net;
+const net = std.Io.net;
 const posix = std.posix;
 const Allocator = std.mem.Allocator;
 
@@ -39,17 +39,17 @@ json_version_response: []const u8,
 active_threads: std.atomic.Value(u32) = .init(0),
 
 cdps: std.ArrayList(*CDP) = .empty,
-cdp_mutex: std.Thread.Mutex = .{},
+cdp_mutex: std.atomic.Mutex = .unlocked,
 cdp_pool: std.heap.MemoryPool(CDP),
 
-pub fn init(app: *App, address: net.Address) !*Server {
+pub fn init(app: *App, address: std.Io.net.IpAddress) !*Server {
     const self = try app.allocator.create(Server);
     errdefer app.allocator.destroy(self);
 
     self.* = .{
         .app = app,
         .json_version_response = "",
-        .cdp_pool = .init(app.allocator),
+        .cdp_pool = .empty,
         .max_connections = app.config.maxConnections(),
     };
     errdefer self.cdp_pool.deinit();
@@ -64,7 +64,7 @@ pub fn init(app: *App, address: net.Address) !*Server {
 }
 
 pub fn shutdown(self: *Server) void {
-    self.cdp_mutex.lock();
+    while (!self.cdp_mutex.tryLock()) {}
     defer self.cdp_mutex.unlock();
 
     self.app.network.unbind();
@@ -97,13 +97,13 @@ fn onAccept(ctx: *anyopaque, socket: posix.socket_t) void {
     const self: *Server = @ptrCast(@alignCast(ctx));
 
     configureSocket(socket) catch {
-        posix.close(socket);
+        _ = std.os.linux.close(socket);
         return;
     };
 
     self.spawnWorker(socket) catch |err| {
         log.err(.app, "CDP spawn", .{ .err = err });
-        posix.close(socket);
+        _ = std.os.linux.close(socket);
     };
 }
 
@@ -166,15 +166,15 @@ fn spawnWorker(self: *Server, socket: posix.socket_t) !void {
 
 fn handleConnection(self: *Server, socket: posix.socket_t) void {
     defer _ = self.active_threads.fetchSub(1, .monotonic);
-    defer posix.close(socket);
+    defer _ = std.os.linux.close(socket);
 
     const cdp = blk: {
-        self.cdp_mutex.lock();
+        while (!self.cdp_mutex.tryLock()) {}
         defer self.cdp_mutex.unlock();
         break :blk self.cdp_pool.create(self.app.allocator) catch @panic("OOM");
     };
     defer {
-        self.cdp_mutex.lock();
+        while (!self.cdp_mutex.tryLock()) {}
         defer self.cdp_mutex.unlock();
         self.cdp_pool.destroy(cdp);
     }
@@ -192,14 +192,14 @@ fn handleConnection(self: *Server, socket: posix.socket_t) void {
 
     {
         // track the connection
-        self.cdp_mutex.lock();
+        while (!self.cdp_mutex.tryLock()) {}
         defer self.cdp_mutex.unlock();
         self.cdps.append(self.app.allocator, cdp) catch {};
     }
 
     defer {
         // untrack the connection
-        self.cdp_mutex.lock();
+        while (!self.cdp_mutex.tryLock()) {}
         defer self.cdp_mutex.unlock();
         for (self.cdps.items, 0..) |c, i| {
             if (c == cdp) {
@@ -222,7 +222,7 @@ fn handleConnection(self: *Server, socket: posix.socket_t) void {
         // Transition from .handshake state to .live
         // Lock needed even though the main thread hasn't seen this yet because
         // shutdown could access this from the sighandler thread.
-        self.cdp_mutex.lock();
+        while (!self.cdp_mutex.tryLock()) {}
         defer self.cdp_mutex.unlock();
         cdp.conn.state = .live;
     }
@@ -620,8 +620,8 @@ const MockCDP = struct {
 };
 
 fn createTestClient() !TestClient {
-    const address = std.net.Address.initIp4([_]u8{ 127, 0, 0, 1 }, 9583);
-    const stream = try std.net.tcpConnectToAddress(address);
+    const address = std.Io.net.IpAddress{ .ip4 = .{ .bytes = .{ 127, 0, 0, 1 }, .port = 9583 } };
+    const stream = try std.Io.net.Stream.connect(&address, lp.io, .{});
 
     const timeout = std.mem.toBytes(posix.timeval{
         .sec = 10,
@@ -639,7 +639,7 @@ fn createTestClient() !TestClient {
 }
 
 const TestClient = struct {
-    stream: std.net.Stream,
+    stream: std.Io.net.Stream,
     buf: [1024]u8 = undefined,
     reader: WS.Reader(false, 1024),
 

@@ -120,7 +120,7 @@ pub const RobotStore = struct {
     }
 
     pub fn deinit(self: *RobotStore) void {
-        self.mutex.lock();
+        while (!self.mutex.tryLock()) {}
         defer self.mutex.unlock();
 
         var iter = self.map.iterator();
@@ -138,7 +138,7 @@ pub const RobotStore = struct {
     }
 
     pub fn get(self: *RobotStore, url: []const u8) ?RobotsEntry {
-        self.mutex.lock();
+        while (!self.mutex.tryLock()) {}
         defer self.mutex.unlock();
 
         return self.map.get(url);
@@ -149,7 +149,7 @@ pub const RobotStore = struct {
     }
 
     pub fn put(self: *RobotStore, url: []const u8, robots: Robots) !void {
-        self.mutex.lock();
+        while (!self.mutex.tryLock()) {}
         defer self.mutex.unlock();
 
         const duped = try self.allocator.dupe(u8, url);
@@ -157,7 +157,7 @@ pub const RobotStore = struct {
     }
 
     pub fn putAbsent(self: *RobotStore, url: []const u8) !void {
-        self.mutex.lock();
+        while (!self.mutex.tryLock()) {}
         defer self.mutex.unlock();
 
         const duped = try self.allocator.dupe(u8, url);
@@ -217,7 +217,7 @@ fn parseRulesWithUserAgent(
 
         // Remove end of line comment.
         const true_line = if (std.mem.indexOfScalar(u8, trimmed, '#')) |pos|
-            std.mem.trimRight(u8, trimmed[0..pos], &std.ascii.whitespace)
+            std.mem.trimEnd(u8, trimmed[0..pos], &std.ascii.whitespace)
         else
             trimmed;
 

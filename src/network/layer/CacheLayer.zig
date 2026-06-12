@@ -19,6 +19,12 @@
 const std = @import("std");
 const lp = @import("lightpanda");
 
+fn timestamp() i64 {
+    var ts: std.os.linux.timespec = undefined;
+    _ = std.os.linux.clock_gettime(.REALTIME, &ts);
+    return @intCast(ts.sec);
+}
+
 const Layer = @import("../../browser/HttpClient.zig").Layer;
 const Request = @import("../../browser/HttpClient.zig").Request;
 const Transfer = @import("../../browser/HttpClient.zig").Transfer;
@@ -62,7 +68,7 @@ fn request(ptr: *anyopaque, transfer: *Transfer) anyerror!void {
 
     if (transfer.client.network.cache.?.get(arena, .{
         .url = req.url,
-        .timestamp = std.time.timestamp(),
+        .timestamp = timestamp(),
         .request_headers = req_header_list.items,
     })) |cached| {
         // Dispatch that the Request was served from the Cache.
@@ -90,7 +96,7 @@ fn request(ptr: *anyopaque, transfer: *Transfer) anyerror!void {
                     const c: *CachedResponse = @ptrCast(@alignCast(ctx_ptr.?));
                     switch (c.data) {
                         .buffer => {},
-                        .file => |f| f.file.close(),
+                        .file => |f| f.file.close(lp.io),
                     }
                 }
             }.abort,
@@ -131,7 +137,7 @@ fn serveFromCache(req: *Request, cached: *const CachedResponse) !void {
     const response = Response.fromCached(req.ctx, cached);
     defer switch (cached.data) {
         .buffer => {},
-        .file => |f| f.file.close(),
+        .file => |f| f.file.close(lp.io),
     };
 
     if (req.start_callback) |cb| {
@@ -152,7 +158,7 @@ fn serveFromCache(req: *Request, cached: *const CachedResponse) !void {
         .file => |f| {
             const file = f.file;
             var buf: [1024]u8 = undefined;
-            var file_reader = file.reader(&buf);
+            var file_reader = file.reader(lp.io, &buf);
             try file_reader.seekTo(f.offset);
             const reader = &file_reader.interface;
             var read_buf: [1024]u8 = undefined;
@@ -207,7 +213,7 @@ const CacheContext = struct {
         var rh = &transfer.res.header.?;
         const maybe_cm = try Cache.tryCache(
             arena,
-            std.time.timestamp(),
+            timestamp(),
             self.req_url,
             rh.status,
             rh.contentType(),

@@ -122,6 +122,18 @@ fn getAndMakeAppDir(allocator: Allocator) ?[]const u8 {
 }
 
 fn getAppDataDir(allocator: Allocator) ![]const u8 {
-    const home = std.posix.getenv("XDG_DATA_HOME") orelse std.posix.getenv("HOME") orelse return error.NoHomeDir;
+    const home = blk: {
+        var i: usize = 0;
+        while (std.c.environ[i] != null) : (i += 1) {
+            const env = std.mem.sliceTo(std.c.environ[i].?, '=');
+            if (std.mem.eql(u8, env, "XDG_DATA_HOME")) {
+                break :blk std.mem.sliceTo(std.c.environ[i].? + env.len + 1, 0);
+            }
+            if (std.mem.eql(u8, env, "HOME")) {
+                break :blk std.mem.sliceTo(std.c.environ[i].? + env.len + 1, 0);
+            }
+        }
+        return error.NoHomeDir;
+    };
     return std.fmt.allocPrint(allocator, "{s}/.lightpanda", .{home});
 }

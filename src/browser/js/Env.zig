@@ -46,7 +46,13 @@ fn initClassIds() void {
     }
 }
 
-var class_id_once = std.once(initClassIds);
+var class_id_once_state: std.atomic.Value(bool) = .init(false);
+
+fn classIdOnce() void {
+    if (class_id_once_state.cmpxchgStrong(false, true, .acquire, .monotonic) == null) {
+        initClassIds();
+    }
+}
 
 // The Env maps to a V8 isolate, which represents a isolated sandbox for
 // executing JavaScript. The Env is where we'll define our V8 <-> Zig bindings,
@@ -115,7 +121,7 @@ pub fn init(app: *App, opts: InitOpts) !Env {
     }
 
     // Initialize class IDs once before any V8 work
-    class_id_once.call();
+    classIdOnce();
 
     const allocator = app.allocator;
     const snapshot = &app.snapshot;

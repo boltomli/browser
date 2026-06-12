@@ -20,6 +20,12 @@ const std = @import("std");
 const lp = @import("lightpanda");
 const crypto = @import("../sys/libcrypto.zig");
 
+fn timestamp() i64 {
+    var ts: std.os.linux.timespec = undefined;
+    _ = std.os.linux.clock_gettime(.REALTIME, &ts);
+    return @intCast(ts.sec);
+}
+
 const Http = @import("../network/http.zig");
 
 const WebBotAuth = @This();
@@ -94,7 +100,7 @@ pub fn signRequest(
     headers: *Http.Headers,
     authority: []const u8,
 ) !void {
-    const now = std.time.timestamp();
+    const now = timestamp();
     const expires = now + 60;
 
     // build the signature-input value (without the sig1= label)

@@ -54,7 +54,7 @@ pub fn init(
     inbox: *Inbox,
     arena_pool: *ArenaPool,
 ) !void {
-    const socket_flags = try std.os.linux.fcntl(socket, posix.F.GETFL, 0);
+    const socket_flags: u32 = @intCast(std.os.linux.fcntl(socket, posix.F.GETFL, 0));
     const nonblocking = @as(u32, @bitCast(posix.O{ .NONBLOCK = true }));
     if (builtin.is_test == false) {
         lp.assert(socket_flags & nonblocking == nonblocking, "Connection.init blocking", .{});
@@ -489,11 +489,11 @@ pub fn sendHttpError(self: *Connection, comptime status: u16, comptime body: []c
     self.send(response) catch {};
 }
 
-pub fn getAddress(self: *Connection) !std.net.Address {
-    var address: std.net.Address = undefined;
-    var socklen: posix.socklen_t = @sizeOf(std.net.Address);
-    try posix.getpeername(self.socket, &address.any, &socklen);
-    return address;
+pub fn getAddress(self: *Connection) !std.Io.net.IpAddress {
+    var sockaddr: std.posix.sockaddr.in = undefined;
+    var socklen: posix.socklen_t = @sizeOf(std.posix.sockaddr.in);
+    _ = std.os.linux.getpeername(self.socket, @ptrCast(&sockaddr), &socklen);
+    return .{ .ip4 = .{ .bytes = @as(*const [4]u8, @ptrCast(&sockaddr.addr)).*, .port = std.mem.nativeToBig(u16, sockaddr.port) } };
 }
 
 pub fn shutdown(self: *Connection) void {

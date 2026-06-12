@@ -71,13 +71,13 @@ fn getOrCreateId(app_dir_path_: ?[]const u8) ?[36]u8 {
     };
 
     var buf: [37]u8 = undefined;
-    var dir = std.Io.Dir.openDirAbsolute(app_dir_path, .{}) catch |err| {
+    var dir = std.Io.Dir.openDirAbsolute(lp.io, app_dir_path, .{}) catch |err| {
         log.warn(.telemetry, "data directory open error", .{ .path = app_dir_path, .err = err });
         return null;
     };
-    defer dir.close();
+    defer dir.close(lp.io);
 
-    const data = dir.readFile(IID_FILE, &buf) catch |err| switch (err) {
+    const data = dir.readFile(lp.io, IID_FILE, &buf) catch |err| switch (err) {
         error.FileNotFound => &.{},
         else => {
             log.warn(.telemetry, "ID read error", .{ .path = app_dir_path, .err = err });
@@ -92,7 +92,7 @@ fn getOrCreateId(app_dir_path_: ?[]const u8) ?[36]u8 {
     }
 
     uuidv4(&id);
-    dir.writeFile(.{ .sub_path = IID_FILE, .data = &id }) catch |err| {
+    dir.writeFile(lp.io, .{ .sub_path = IID_FILE, .data = &id }) catch |err| {
         log.warn(.telemetry, "ID write error", .{ .path = app_dir_path, .err = err });
         return null;
     };

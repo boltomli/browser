@@ -1478,7 +1478,7 @@ pub const Response = struct {
     pub fn toStable(self: Response, arena: std.mem.Allocator) !StableResponse {
         const new_url = try arena.dupeZ(u8, self.url());
 
-        var headers: std.ArrayListUnmanaged(http.Header) = .{};
+        var headers: std.ArrayListUnmanaged(http.Header) = .empty;
         var it = self.headerIterator();
         while (it.next()) |hdr| {
             try headers.append(arena, .{

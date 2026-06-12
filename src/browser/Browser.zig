@@ -90,8 +90,8 @@ pub fn init(self: *Browser, app: *App, opts: InitOpts, cdp: ?*CDP) !void {
         .allocator = allocator,
         .arena_pool = &app.arena_pool,
         .http_client = undefined,
-        .page_pool = std.heap.MemoryPool(Page).init(allocator),
-        .fc_identity_pool = .init(allocator),
+        .page_pool = .empty,
+        .fc_identity_pool = .empty,
     };
     try self.http_client.init(allocator, &app.network, cdp);
 }
