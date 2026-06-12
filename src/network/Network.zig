@@ -289,7 +289,7 @@ pub fn deinit(self: *Network) void {
 
     for (&self.wakeup_pipe) |*fd| {
         if (fd.* >= 0) {
-            std.os.linux.close(fd.*);
+            _ = std.os.linux.close(fd.*);
             fd.* = -1;
         }
     }
