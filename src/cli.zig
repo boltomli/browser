@@ -271,7 +271,27 @@ pub fn Builder(comptime commands: anytype) type {
 
                 const data = optionsToFieldData(options);
 
-                const T = @Struct(.auto, null, &data.names, &data.types, &data.attrs);
+                // If command has a positional, append it to the field data
+                const extra: usize = if (@hasField(@TypeOf(command), "positional")) 1 else 0;
+                const field_count = data.names.len + extra;
+                var all_names: [field_count][]const u8 = undefined;
+                var all_types: [field_count]type = undefined;
+                var all_attrs: [field_count]std.builtin.Type.StructField.Attributes = undefined;
+                @memcpy(all_names[0..data.names.len], &data.names);
+                @memcpy(all_types[0..data.types.len], &data.types);
+                @memcpy(all_attrs[0..data.attrs.len], &data.attrs);
+                if (@hasField(@TypeOf(command), "positional")) {
+                    const p = command.positional;
+                    all_names[data.names.len] = p.name;
+                    all_types[data.types.len] = p.type;
+                    all_attrs[data.attrs.len] = .{
+                        .default_value_ptr = @ptrCast(&@as(p.type, null)),
+                        .@"comptime" = false,
+                        .@"align" = @alignOf(p.type),
+                    };
+                }
+
+                const T = @Struct(.auto, null, &all_names, &all_types, &all_attrs);
 
                 union_names[i] = command.name;
                 union_types[i] = T;
@@ -681,7 +701,7 @@ pub fn Builder(comptime commands: anytype) type {
                             const v = blk: {
                                 // DupeZ branch.
                                 if (comptime pointer.sentinel()) |sentinel| {
-                                    const buf = try allocator.alignedAlloc(u8, .fromByteUnits(pointer.alignment), str.len + 1);
+                                    const buf = try allocator.alignedAlloc(u8, std.mem.Alignment.fromByteUnitsOptional(pointer.alignment), str.len + 1);
                                     @memcpy(buf[0..str.len], str);
                                     buf[str.len] = sentinel;
                                     break :blk buf[0..str.len :sentinel];

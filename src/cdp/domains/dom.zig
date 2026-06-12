@@ -656,8 +656,8 @@ fn fileFromDiskPath(path: []const u8, page: *Page) !*File {
     const arena = try page.getArena(.large, "File");
     errdefer page.releaseArena(arena);
 
-    const data = try std.fs.cwd().readFileAlloc(arena, path, MAX_FILE_BYTES);
-    const stat = try std.fs.cwd().statFile(path);
+    const data = try std.Io.Dir.cwd().readFileAlloc(lp.io, path, arena, .limited(MAX_FILE_BYTES));
+    const stat = try std.Io.Dir.cwd().statFile(lp.io, path, .{});
     const basename = std.fs.path.basename(path);
 
     const blob = try arena.create(Blob);
@@ -672,7 +672,7 @@ fn fileFromDiskPath(path: []const u8, page: *Page) !*File {
     file.* = .{
         ._proto = blob,
         ._name = try arena.dupe(u8, basename),
-        ._last_modified = @intCast(@divTrunc(stat.mtime, std.time.ns_per_ms)),
+        ._last_modified = @intCast(@divTrunc(stat.mtime.nanoseconds, std.time.ns_per_ms)),
     };
     return file;
 }
@@ -839,7 +839,7 @@ test "cdp.dom: setFileInputFiles on file input" {
     try ctx.expectSentResult(.{ .nodeIds = &.{1} }, .{ .id = 2 });
 
     // Drop a temp file we can upload.
-    var tmp_dir = try std.fs.cwd().makeOpenPath(".zig-cache/tmp", .{});
+    var tmp_dir = try std.Io.Dir.cwd().makeOpenPath(lp.io, ".zig-cache/tmp", .{});
     defer tmp_dir.close();
     {
         const f = try tmp_dir.createFile("upload.txt", .{ .truncate = true });
@@ -874,7 +874,7 @@ test "cdp.dom: setFileInputFiles exposes files to JS" {
     try ctx.expectSentResult(.{ .nodeIds = &.{1} }, .{ .id = 2 });
 
     // Two files, so we can assert ordering as well as identity and iteration.
-    var tmp_dir = try std.fs.cwd().makeOpenPath(".zig-cache/tmp", .{});
+    var tmp_dir = try std.Io.Dir.cwd().makeOpenPath(lp.io, ".zig-cache/tmp", .{});
     defer tmp_dir.close();
     {
         const a = try tmp_dir.createFile("a.txt", .{ .truncate = true });
@@ -995,7 +995,7 @@ test "cdp.dom: setFileInputFiles errors (and leaks nothing) when a path is missi
 
     // First path exists, second does not: the first File is created then must be
     // freed when the second read fails (the test runner panics on a leak).
-    var tmp_dir = try std.fs.cwd().makeOpenPath(".zig-cache/tmp", .{});
+    var tmp_dir = try std.Io.Dir.cwd().makeOpenPath(lp.io, ".zig-cache/tmp", .{});
     defer tmp_dir.close();
     {
         const f = try tmp_dir.createFile("upload.txt", .{ .truncate = true });

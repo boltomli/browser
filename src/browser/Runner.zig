@@ -26,6 +26,14 @@ fn monoNowNs() u64 {
     return @as(u64, @intCast(ts.sec)) * std.time.ns_per_s + @as(u64, @intCast(ts.nsec));
 }
 
+fn sleepNs(ns: u64) void {
+    var ts: std.os.linux.timespec = .{
+        .sec = @intCast(ns / std.time.ns_per_s),
+        .nsec = @intCast(ns % std.time.ns_per_s),
+    };
+    _ = std.os.linux.nanosleep(&ts, null);
+}
+
 const js = @import("js/js.zig");
 const Frame = @import("Frame.zig");
 const Session = @import("Session.zig");
@@ -74,24 +82,20 @@ fn _wait(self: *Runner, comptime is_cdp: bool, opts: WaitOpts) !void {
     const session = self.session;
     const browser = session.browser;
 
-    var ts_start: std.os.linux.timespec = undefined; _ = std.os.linux.clock_gettime(.MONOTONIC, &ts_start); var timer_ns: u64 = @intCast(ts_start.sec) * std.time.ns_per_s + @intCast(ts_start.nsec);
+    const timer_start = monoNowNs();
 
     const tick_opts = TickOpts{
         .ms = 200,
         .until = opts.until,
     };
 
-    // Periodic V8 GC hint during long waits. V8 is otherwise only nudged on
-    // session/page teardown (Browser.zig, Page.zig), so a page that stays
-    // alive for seconds while running heavy JS accumulates wrappers and
-    // external-ref'd Zig allocations V8 has no reason to drop. `.moderate`
-    // speeds up incremental GC without stalling the tick.
+    // Periodic V8 GC hint during long waits.
     const gc_hint_period_ns: u64 = std.time.ns_per_s;
-    const gc_hint_start = monoNowNs();
+    var gc_hint_ts: u64 = monoNowNs();
 
     while (true) {
-        if (gc_hint_(monoNowNs() - timer_start) >= gc_hint_period_ns) {
-            gc_hint_start = monoNowNs();
+        if (monoNowNs() -| gc_hint_ts >= gc_hint_period_ns) {
+            gc_hint_ts = monoNowNs();
             browser.env.memoryPressureNotification(.moderate);
         }
         session.processDestroyQueues();
@@ -132,7 +136,7 @@ fn _wait(self: *Runner, comptime is_cdp: bool, opts: WaitOpts) !void {
             return;
         }
         if (next_ms > 0) {
-            std.Thread.sleep(std.time.ns_per_ms * next_ms);
+            sleepNs(std.time.ns_per_ms * next_ms);
         }
     }
 }
@@ -278,8 +282,8 @@ pub fn waitForSelector(self: *Runner, selector: [:0]const u8, timeout_ms: u32) !
     const arena = try self.session.getArena(.small, "Runner.waitForSelector");
     defer self.session.releaseArena(arena);
 
-    var ts_start: std.os.linux.timespec = undefined; _ = std.os.linux.clock_gettime(.MONOTONIC, &ts_start); var timer_ns: u64 = @intCast(ts_start.sec) * std.time.ns_per_s + @intCast(ts_start.nsec);
     const parsed_selector = try Selector.parseLeaky(arena, selector);
+    const timer_start = monoNowNs();
 
     while (true) {
         // self.frame can change between ticks
@@ -296,7 +300,7 @@ pub fn waitForSelector(self: *Runner, selector: [:0]const u8, timeout_ms: u32) !
             .done => return error.Timeout,
             .ok => |recommended_sleep_ms| {
                 if (recommended_sleep_ms > 0) {
-                    std.Thread.sleep(std.time.ns_per_ms * recommended_sleep_ms);
+                    sleepNs(std.time.ns_per_ms * recommended_sleep_ms);
                 }
             },
         }
@@ -304,7 +308,7 @@ pub fn waitForSelector(self: *Runner, selector: [:0]const u8, timeout_ms: u32) !
 }
 
 pub fn waitForScript(runner: *Runner, src: [:0]const u8, timeout_ms: u32) !void {
-    var ts_start: std.os.linux.timespec = undefined; _ = std.os.linux.clock_gettime(.MONOTONIC, &ts_start); var timer_ns: u64 = @intCast(ts_start.sec) * std.time.ns_per_s + @intCast(ts_start.nsec);
+    const timer_start = monoNowNs();
 
     // Compile the script once and re-use the compiled form. A tick can create a
     // new context (an internal navigation), so we keep an unbound script (one
@@ -359,7 +363,7 @@ pub fn waitForScript(runner: *Runner, src: [:0]const u8, timeout_ms: u32) !void 
             .done => return error.Timeout,
             .ok => |recommended_sleep_ms| {
                 if (recommended_sleep_ms > 0) {
-                    std.Thread.sleep(std.time.ns_per_ms * recommended_sleep_ms);
+                    sleepNs(std.time.ns_per_ms * recommended_sleep_ms);
                 }
             },
         }

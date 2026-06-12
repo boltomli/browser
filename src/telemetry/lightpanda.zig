@@ -49,7 +49,7 @@ pub fn deinit(self: *LightPanda) void {
 }
 
 pub fn send(self: *LightPanda, raw_event: telemetry.Event) !void {
-    self.mutex.lock();
+    while (!self.mutex.tryLock()) {}
     defer self.mutex.unlock();
 
     const t = self.tail.load(.monotonic);

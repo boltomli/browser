@@ -16,6 +16,12 @@
 const std = @import("std");
 const lp = @import("lightpanda");
 
+fn timestamp() i64 {
+    var ts: std.os.linux.timespec = undefined;
+    _ = std.os.linux.clock_gettime(.REALTIME, &ts);
+    return @intCast(ts.sec);
+}
+
 const Session = @import("browser/Session.zig");
 const Cookie = @import("browser/webapi/storage/Cookie.zig");
 
@@ -35,7 +41,7 @@ fn _loadFromFile(session: *Session, path: []const u8) !void {
     const arena = try session.getArena(.medium, "Cookies.loadFromFile");
     defer session.releaseArena(arena);
 
-    const content = std.fs.cwd().readFileAlloc(arena, path, 1024 * 1024) catch |err| {
+    const content = std.Io.Dir.cwd().readFileAlloc(lp.io, path, arena, .limited(1024 * 1024)) catch |err| {
         switch (err) {
             error.FileNotFound => log.debug(.app, "Cookie.readFile", .{ .path = path, .note = "file not found" }),
             else => log.err(.app, "Cookie.readFile", .{ .path = path, .err = err }),
@@ -51,7 +57,7 @@ fn _loadFromFile(session: *Session, path: []const u8) !void {
     };
 
     const jar = &session.cookie_jar;
-    const now = std.time.timestamp();
+    const now = timestamp();
 
     var loaded: usize = 0;
     for (json_cookies) |jc| {
@@ -96,7 +102,7 @@ pub fn saveToFile(jar: *Cookie.Jar, path: []const u8) void {
 fn _saveToFile(jar: *Cookie.Jar, path: []const u8) !void {
     jar.removeExpired(null);
 
-    var file = try std.fs.cwd().createFile(path, .{});
+    var file = try std.Io.Dir.cwd().createFile(lp.io, path, .{});
     defer file.close();
 
     var buf: [8192]u8 = undefined;

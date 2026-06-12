@@ -126,7 +126,7 @@ fn waitScriptFileValidator(allocator: Allocator, args: *std.process.Args.Iterato
         return error.InvalidArgument;
     };
 
-    return std.fs.cwd().readFileAllocOptions(allocator, path, 1024 * 1024, null, .of(u8), 0) catch |err| {
+    return std.Io.Dir.cwd().readFileAllocOptions(lp.io, path, allocator, .limited(1024 * 1024), .of(u8), 0) catch |err| {
         log.fatal(.app, "failed to read file", .{ .arg = "--wait-script-file", .path = path, .err = err });
         return error.InvalidArgument;
     };
@@ -142,7 +142,7 @@ fn injectScriptFileValidator(
         return error.InvalidArgument;
     };
 
-    const bytes = std.fs.cwd().readFileAllocOptions(allocator, path, std.math.maxInt(usize), null, .of(u8), null) catch |err| {
+    const bytes = std.Io.Dir.cwd().readFileAllocOptions(lp.io, path, allocator, .unlimited, .of(u8), null) catch |err| {
         log.fatal(.app, "failed to read file", .{ .arg = "--inject-script-file", .path = path, .err = err });
         return error.InvalidArgument;
     };

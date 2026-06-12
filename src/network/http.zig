@@ -254,20 +254,22 @@ fn opensocketCallback(
     const filter: *const IpFilter = @ptrCast(@alignCast(clientp orelse return libcurl.CURL_SOCKET_BAD));
     if (filter.isBlockedSockaddr(address)) {
         if (address.family == posix.AF.INET or address.family == posix.AF.INET6) {
-            const ip = std.net.Address.initPosix(@ptrCast(&address.addr));
-            log.warn(.http, "blocked by IP filter", .{ .ip = ip });
+            log.warn(.http, "blocked by IP filter", .{ .addr = @as(*const [14]u8, @ptrCast(&address.addr)) });
         } else {
             log.warn(.http, "blocked by IP filter", .{ .family = address.family });
         }
         return libcurl.CURL_SOCKET_BAD;
     }
     _ = purpose; // purpose is informational; we always open the same socket type
-    const fd = posix.socket(
+    const fd = std.os.linux.socket(
         @intCast(address.family),
         @intCast(address.socktype),
         @intCast(address.protocol),
-    ) catch return libcurl.CURL_SOCKET_BAD;
-    return fd;
+    );
+    if (fd > std.math.maxInt(usize) - 4096) {
+        return libcurl.CURL_SOCKET_BAD;
+    }
+    return @intCast(fd);
 }
 
 pub const Connection = struct {

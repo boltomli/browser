@@ -85,7 +85,7 @@ pub fn init(path: []const u8) !FsCache {
 }
 
 pub fn deinit(self: *FsCache) void {
-    self.dir.close();
+    self.dir.close(lp.io);
 }
 
 pub fn get(self: *FsCache, arena: std.mem.Allocator, req: CacheRequest) ?CachedResponse {
@@ -96,7 +96,7 @@ pub fn get(self: *FsCache, arena: std.mem.Allocator, req: CacheRequest) ?CachedR
     while (!lock.tryLock()) {}
     defer lock.unlock();
 
-    const file = self.dir.openFile(&cache_p, .{ .mode = .read_only }) catch |e| {
+    const file = self.dir.openFile(lp.io, &cache_p, .{ .mode = .read_only }) catch |e| {
         switch (e) {
             std.fs.File.OpenError.FileNotFound => {
                 log.debug(.cache, "miss", .{ .url = req.url, .hash = &hashed_key, .reason = "missing" });
@@ -111,7 +111,7 @@ pub fn get(self: *FsCache, arena: std.mem.Allocator, req: CacheRequest) ?CachedR
     var cleanup = false;
     defer if (cleanup) {
         file.close();
-        self.dir.deleteFile(&cache_p) catch |e| {
+        self.dir.deleteFile(lp.io, &cache_p) catch |e| {
             log.err(.cache, "clean fail", .{ .url = req.url, .file = &cache_p, .err = e });
         };
     };
@@ -222,11 +222,11 @@ pub fn put(self: *FsCache, meta: CachedMetadata, body: []const u8) !void {
     while (!lock.tryLock()) {}
     defer lock.unlock();
 
-    const file = self.dir.createFile(&cache_tmp_p, .{ .truncate = true }) catch |e| {
+    const file = self.dir.createFile(lp.io, &cache_tmp_p, .{ .truncate = true }) catch |e| {
         log.err(.cache, "create file", .{ .url = meta.url, .file = &cache_tmp_p, .err = e });
         return e;
     };
-    errdefer self.dir.deleteFile(&cache_tmp_p) catch {};
+    errdefer self.dir.deleteFile(lp.io, &cache_tmp_p) catch {};
     defer file.close();
 
     var writer_buf: [1024]u8 = undefined;
@@ -256,7 +256,7 @@ pub fn put(self: *FsCache, meta: CachedMetadata, body: []const u8) !void {
         log.err(.cache, "flush", .{ .url = meta.url, .err = e });
         return e;
     };
-    self.dir.rename(&cache_tmp_p, &cache_p) catch |e| {
+    self.dir.rename(lp.io, &cache_tmp_p, &cache_p) catch |e| {
         log.err(.cache, "rename", .{ .url = meta.url, .from = &cache_tmp_p, .to = &cache_p, .err = e });
         return e;
     };
@@ -271,12 +271,12 @@ pub fn clear(self: *FsCache) !void {
     defer for (&self.locks) |*lock| lock.unlock();
 
     var iter = self.dir.iterate();
-    while (try iter.next()) |entry| {
+    while (try iter.next(lp.io)) |entry| {
         if (entry.kind != .file) continue;
         if (!std.mem.endsWith(u8, entry.name, ".cache") and
             !std.mem.endsWith(u8, entry.name, ".cache.tmp")) continue;
 
-        self.dir.deleteFile(entry.name) catch |e| {
+        self.dir.deleteFile(lp.io, entry.name) catch |e| {
             log.err(.cache, "clear delete fail", .{ .file = entry.name, .err = e });
         };
     }
@@ -290,7 +290,7 @@ pub fn evict(self: *FsCache, url: []const u8) void {
     while (!lock.tryLock()) {}
     defer lock.unlock();
 
-    self.dir.deleteFile(&cache_p) catch |e| switch (e) {
+    self.dir.deleteFile(lp.io, &cache_p) catch |e| switch (e) {
         error.FileNotFound => {},
         else => log.warn(.cache, "evict failed", .{ .url = url, .err = e }),
     };

@@ -18,6 +18,8 @@
 
 const std = @import("std");
 
+pub var io: std.Io = undefined;
+
 pub const log = @import("log.zig");
 pub const App = @import("App.zig");
 pub const Network = @import("network/Network.zig");

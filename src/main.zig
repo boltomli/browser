@@ -27,7 +27,10 @@ const Config = lp.Config;
 const SigHandler = @import("Sighandler.zig");
 pub const panic = lp.crash_handler.panic;
 
+pub var global_io: std.Io = undefined;
+
 pub fn main(init: std.process.Init) !void {
+    lp.io = init.io;
     // allocator
     // - in Debug mode we use the General Purpose Allocator to detect memory leaks
     // - in Release mode we use the c allocator
@@ -43,13 +46,14 @@ pub fn main(init: std.process.Init) !void {
     const main_arena = main_arena_instance.allocator();
     defer main_arena_instance.deinit();
 
-    run(gpa, main_arena, init.minimal.args) catch |err| {
+    run(gpa, main_arena, init.minimal.args, init.io) catch |err| {
         log.fatal(.app, "exit", .{ .err = err });
         std.posix.exit(1);
     };
 }
 
-fn run(allocator: Allocator, main_arena: Allocator, args_: std.process.Args) !void {
+fn run(allocator: Allocator, main_arena: Allocator, args_: std.process.Args, io: std.Io) !void {
+    _ = io;
     const args = try Config.parseArgs(main_arena, args_);
     defer args.deinit(main_arena);
 

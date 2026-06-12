@@ -18,6 +18,7 @@
 
 const std = @import("std");
 const builtin = @import("builtin");
+const lp = @import("lightpanda");
 
 const js = @import("../../browser/js/js.zig");
 const CDP = @import("../CDP.zig");
@@ -103,12 +104,15 @@ fn logInspector(cmd: *CDP.Command, action: anytype) !void {
     const id = cmd.input.id orelse return error.RequiredId;
     const name = try std.fmt.allocPrint(cmd.arena, "id_{d}.js", .{id});
 
-    var dir = try std.fs.cwd().makeOpenPath(".zig-cache/tmp", .{});
-    defer dir.close();
+    var dir = try std.Io.Dir.cwd().createDirPathOpen(lp.io, ".zig-cache/tmp", .{});
+    defer dir.close(lp.io);
 
-    const f = try dir.createFile(name, .{});
-    defer f.close();
-    try f.writeAll(script);
+    const f = try dir.createFile(lp.io, name, .{});
+    defer f.close(lp.io);
+    var buf: [4096]u8 = undefined;
+    var w = f.writer(lp.io, &buf);
+    try w.interface.writeAll(script);
+    try w.end();
 }
 
 const RemoteObject = struct {
